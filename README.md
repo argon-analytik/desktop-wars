@@ -128,33 +128,24 @@ After Wave 2, choose **one permanent upgrade**:
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Play (Desktop Browser)
 
-- Node.js 16 or newer  
-- npm or yarn  
+Open `index.html` (double click) and play.
 
-### Installation
+### Sprites / Assets
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/desktop-wars.git
-cd desktop-wars
-
-# Install dependencies
-npm install
-
-# Start development server
-npm start
-```
+- Put your images into `assets/sprites/`
+- Adjust paths in `src/assets/manifest.js` if you want different filenames
+- Missing sprites automatically fall back to the built-in emoji/SVG visuals
 
 ---
 
 ## 🧩 Usage as a React Component
 
-The game is implemented as a **single React component**:
+The game is exposed as a React component:
 
 ```jsx
-import DesktopWars from './desktop-wars-clean';
+import DesktopWars from './src/DesktopWars.jsx';
 
 function App() {
   return <DesktopWars />;
@@ -167,29 +158,37 @@ export default App;
 
 ## 📦 Dependencies
 
-- React 18 or newer  
-- No additional libraries. The game uses pure React with inline styles  
+- Runtime: React 18 UMD + ReactDOM 18 UMD (loaded in `index.html`)
+- Build: `esbuild` (to generate `build/app.js`)
 
 ---
 
 ## 🏗️ Project Structure
 
 ```text
-desktop-wars/
-├── desktop-wars-clean.jsx   # Main game component
-├── README.md               # Documentation
-└── package.json            # Project configuration
+desktop-wars-1/
+├── index.html
+├── assets/
+│   └── sprites/
+├── build/
+│   └── app.js              # bundled output (browser)
+├── src/
+│   ├── DesktopWars.jsx     # main component
+│   └── ...
+├── desktop-wars-clean.jsx  # re-export for compatibility
+├── package.json
+└── scripts/
+    └── build.mjs
 ```
 
 ---
 
 ## 🎨 Technical Details
 
-- **Pure React** with `requestAnimationFrame`, no external game engine  
-- **Inline styles only**, no CSS files required  
-- **Single-file architecture**, roughly 1900 lines of code  
-- **Emoji-based assets**, no external images needed  
-- **Google Font**: “Press Start 2P” for authentic retro typography  
+- **Pure React** with `requestAnimationFrame`, no external game engine
+- **Inline styles**, no CSS framework
+- Optional **sprite override** via `assets/sprites/` + `src/assets/manifest.js`
+- Font: “Press Start 2P” (loaded in `index.html`)
 
 ---
 
@@ -198,6 +197,17 @@ desktop-wars/
 1. Avoid spamming shots. CPU heat is your primary limiter  
 2. Empty the trash frequently to stay mobile  
 3. Read popups carefully. Button positions are deceptive  
+
+---
+
+## 🔧 Build (Optional)
+
+If you change files under `src/`, regenerate the browser bundle:
+
+```bash
+npm install
+npm run build
+```
 4. Use walls to funnel enemies into kill zones  
 5. Deploy sticky notes as effective decoys  
 6. Save EMP blasts for emergencies  
