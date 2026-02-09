@@ -169,7 +169,7 @@ export default function PlayerCursor({
             whiteSpace: 'nowrap',
           }}
         >
-          {powerUp === 'rapid' ? '🔥RAPID' : powerUp === 'triple' ? '🔱TRIPLE' : '🛡️GIANT'}
+          {powerUp === 'rapid' ? 'RAPID' : powerUp === 'triple' ? 'TRIPLE' : 'GIANT'}
         </div>
       )}
     </>

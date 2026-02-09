@@ -4,12 +4,14 @@ Lege deine eigenen Sprites unter `assets/sprites/` ab und passe bei Bedarf die P
 
 - Empfohlen: Pixel-Art in PNG (mit Transparenz)
 - Rendering ist standardmäßig `image-rendering: pixelated`
-- Fehlende Sprites fallen automatisch auf die Emoji-/SVG-Defaults zurück
+- Fehlende Sprites fallen automatisch auf die eingebauten Vektor-Defaults (SVG) zurück
+- Standard-Rendering: WebGL/3D (Three.js); Welt-Sprites sind optional
+- Sprites werden vor allem für UI-Icons und den DOM-Fallback-Renderer genutzt
 
 Spezial:
 
 - `assets/svg/crt-monitor.svg` wird als Overlay benutzt (transparentes “Loch” = Spielfläche); Position/Größe in `src/assets/layout.js`.
-- `assets/sprites/fighter-a.png` wird als Cursor/Spieler-Sprite benutzt (siehe `src/assets/manifest.js`).
+- `assets/sprites/fighter-a.png` wird im DOM-Fallback als Cursor/Spieler-Sprite benutzt (siehe `src/assets/manifest.js`).
 
 ## Dateinamen (müssen exakt so heißen)
 

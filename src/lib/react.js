@@ -6,4 +6,4 @@ if (!React) {
   );
 }
 
-export const { useCallback, useEffect, useMemo, useRef, useState } = React;
+export const { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } = React;

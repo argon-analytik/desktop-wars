@@ -1,22 +1,9 @@
-import { React, useEffect, useState } from '../../lib/react.js';
+import { React } from '../../lib/react.js';
 import Button from '../ui/Button.jsx';
 import Window from '../ui/Window.jsx';
 
 export default function PopupWindow({ popup, onChoice }) {
-  const [countdown, setCountdown] = useState(100);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          onChoice(popup, popup.isLegit ? 'reject' : 'accept');
-          return 100;
-        }
-        return prev - 0.8;
-      });
-    }, 50);
-    return () => clearInterval(interval);
-  }, [popup, onChoice]);
+  const countdown = Number.isFinite(popup?.countdown) ? popup.countdown : 100;
 
   const swapped = popup.swapped;
   let title;
@@ -24,16 +11,16 @@ export default function PopupWindow({ popup, onChoice }) {
   let warningColor;
 
   if (popup.type === 'firewall') {
-    title = '🛡️ Connection Request';
-    warning = '⚠️ Unknown signature!';
+    title = 'Connection Request';
+    warning = 'Unknown signature!';
     warningColor = '#d44';
   } else if (popup.type === 'security-update') {
-    title = '🔒 Security Patch';
-    warning = '✓ Verified - INSTALL!';
+    title = 'Security Patch';
+    warning = 'VERIFIED - INSTALL!';
     warningColor = '#484';
   } else {
-    title = '📦 Update Available';
-    warning = '⚠️ Checksum mismatch!';
+    title = 'Update Available';
+    warning = 'Checksum mismatch!';
     warningColor = '#d44';
   }
 
@@ -110,4 +97,3 @@ export default function PopupWindow({ popup, onChoice }) {
     </div>
   );
 }
-

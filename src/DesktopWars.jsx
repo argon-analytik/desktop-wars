@@ -1,13 +1,13 @@
 import { React, useCallback, useEffect, useRef, useState } from './lib/react.js';
+import { ReactDOM } from './lib/reactDom.js';
 import { CRT_MONITOR_LAYOUT } from './assets/layout.js';
 import { SPRITES } from './assets/manifest.js';
 import Button from './components/ui/Button.jsx';
 import Window from './components/ui/Window.jsx';
 import Sprite from './components/shared/Sprite.jsx';
-import SpriteSheet from './components/shared/SpriteSheet.jsx';
+import AimOverlay from './components/game/AimOverlay.jsx';
 import Clutter from './components/game/Clutter.jsx';
 import Deployable from './components/game/Deployable.jsx';
-import EMPExplosion from './components/game/EMPExplosion.jsx';
 import Enemy from './components/game/Enemy.jsx';
 import FolderWall from './components/game/FolderWall.jsx';
 import Pickup from './components/game/Pickup.jsx';
@@ -16,6 +16,7 @@ import PopupWindow from './components/game/PopupWindow.jsx';
 import SetupPhase from './components/game/SetupPhase.jsx';
 import SystemFolder from './components/game/SystemFolder.jsx';
 import Trash from './components/game/Trash.jsx';
+import ThreeScreen from './components/game/ThreeScreen.jsx';
 import { GAME_STATES, GRID_SIZE, MENUBAR_HEIGHT, SCREEN_HEIGHT, SCREEN_WIDTH } from './game/constants.js';
 import { createInitialPlayer } from './game/initialState.js';
 
@@ -63,15 +64,75 @@ export default function DesktopWars() {
   const [empExplosion, setEmpExplosion] = useState(null);
   
   const gameRef = useRef(null);
+  const fullscreenRef = useRef(null);
   const animFrameRef = useRef(null);
   const lastTimeRef = useRef(0);
   const shootCooldownRef = useRef(0);
   const spawnTimerRef = useRef(0);
   const popupTimerRef = useRef(10000);
+  const setupAccumRef = useRef(0);
+
+  const isWebdriver = typeof navigator !== 'undefined' && !!navigator.webdriver;
+  const [useWebGL, setUseWebGL] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const raw = new URLSearchParams(window.location.search).get('renderer');
+    if (!raw) return true;
+    const v = String(raw).toLowerCase();
+    if (v === 'dom' || v === '2d') return false;
+    if (v === 'webgl' || v === '3d') return true;
+    return true;
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewport, setViewport] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    h: typeof window !== 'undefined' ? window.innerHeight : 768,
+  }));
+
+  const stateRef = useRef(null);
+  stateRef.current = {
+    gameState,
+    player,
+    enemies,
+    projectiles,
+    pickups,
+    folderWalls,
+    deployables,
+    clutter,
+    popups,
+    mousePos,
+    keys,
+    wave,
+    waveTimer,
+    totalTime,
+    setupTimer,
+    systemFolderHP,
+    score,
+    privacyScore,
+    isShooting,
+    showHelp,
+    empExplosion,
+  };
 
   // Generate seed
   useEffect(() => {
     setSeed(Math.random().toString(36).substring(2, 10).toUpperCase());
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
   // Popup handler
@@ -91,11 +152,72 @@ export default function DesktopWars() {
     setPopups([]);
   }, []);
 
+  const toggleFullscreen = useCallback(() => {
+    const el = fullscreenRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      el.requestFullscreen?.();
+    }
+  }, []);
+
+  const startGame = useCallback(() => {
+    setPlayer(createInitialPlayer());
+    setEnemies([]);
+    setProjectiles([]);
+    setPickups([]);
+    setClutter([]);
+    setPopups([]);
+    setFolderWalls([]);
+    setDeployables([]);
+    setWave(0);
+    setWaveTimer(90); // 90 seconds per wave
+    setTotalTime(0);
+    setSetupTimer(25);
+    setupAccumRef.current = 0;
+    setSystemFolderHP(100);
+    setScore(0);
+    setPrivacyScore(100);
+    setIsShooting(false);
+    setEmpExplosion(null);
+    shootCooldownRef.current = 0;
+    spawnTimerRef.current = 3000;
+    popupTimerRef.current = 15000;
+    setSeed(Math.random().toString(36).substring(2, 10).toUpperCase());
+    setGameState(GAME_STATES.SETUP);
+  }, []);
+
+  const continueFromIntermission = useCallback((upgrade) => {
+    setPlayer(prev => ({ ...prev, upgrades: [...prev.upgrades, upgrade] }));
+    setWave(3);
+    setWaveTimer(90); // Reset timer for wave 3
+    setGameState(GAME_STATES.PLAYING);
+  }, []);
+
   // Input handling
   useEffect(() => {
     const handleKeyDown = (e) => {
       const key = e.key.toLowerCase();
       setKeys(prev => ({ ...prev, [key]: true }));
+
+      if (key === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+
+      if (key === 'enter') {
+        e.preventDefault();
+        const gs = stateRef.current?.gameState;
+        if (gs === GAME_STATES.MENU) {
+          startGame();
+        } else if (gs === GAME_STATES.SETUP) {
+          setGameState(GAME_STATES.PLAYING);
+          setWave(1);
+        } else if (gs === GAME_STATES.GAMEOVER || gs === GAME_STATES.WIN) {
+          startGame();
+        }
+      }
       
       if (e.code === 'Space') {
         e.preventDefault();
@@ -163,7 +285,7 @@ export default function DesktopWars() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [startGame, toggleFullscreen]);
 
   const handleMouseMove = useCallback((e) => {
     if (!gameRef.current) return;
@@ -177,159 +299,194 @@ export default function DesktopWars() {
   }, []);
 
   const triggerEMP = useCallback(() => {
-    setPlayer(prev => ({ ...prev, empCharge: 0 }));
-    setEnemies(prev => prev.map(e => ({ ...e, stunned: 120 })));
-    setEmpExplosion({ x: player.x, y: player.y });
-    setTimeout(() => setEmpExplosion(null), 600);
-  }, [player.x, player.y]);
+    const snap = stateRef.current;
+    const px = snap?.player?.x ?? SCREEN_WIDTH / 2;
+    const py = snap?.player?.y ?? SCREEN_HEIGHT / 2;
+    const t0 = Number.isFinite(snap?.totalTime) ? snap.totalTime : 0;
 
-  // Main game loop
-  useEffect(() => {
-    if (gameState !== GAME_STATES.PLAYING) {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    setPlayer((prev) => ({ ...prev, empCharge: 0 }));
+    setEnemies((prev) => prev.map((e) => ({ ...e, stunned: 120 })));
+    setEmpExplosion({ x: px, y: py, t0 });
+  }, []);
+
+  const tick = useCallback((deltaTime) => {
+    const snap = stateRef.current;
+    if (!snap) return;
+
+    const dt = Math.max(0, Math.min(50, deltaTime));
+    const gs = snap.gameState;
+
+    // Deterministic popup countdown (works under webdriver stepping).
+    if (snap.popups.length > 0) {
+      const decayPerMs = 0.016;
+      setPopups((prev) => {
+        if (prev.length === 0) return prev;
+        const p = prev[0];
+        const c = Number.isFinite(p.countdown) ? p.countdown : 100;
+        const next = c - dt * decayPerMs;
+        if (next <= 0) {
+          setPlayer((pl) => ({ ...pl, hp: pl.hp - 1 }));
+          return [];
+        }
+        return [{ ...p, countdown: next }];
+      });
+    }
+
+    if (gs === GAME_STATES.SETUP) {
+      setupAccumRef.current += dt;
+      const dec = Math.floor(setupAccumRef.current / 1000);
+      if (dec > 0) {
+        setupAccumRef.current -= dec * 1000;
+        setSetupTimer((prev) => {
+          const next = prev - dec;
+          if (next <= 0) {
+            setGameState(GAME_STATES.PLAYING);
+            setWave(1);
+            return 25;
+          }
+          return next;
+        });
+      }
       return;
     }
 
-    const gameLoop = (timestamp) => {
-      const deltaTime = Math.min(timestamp - lastTimeRef.current, 50);
-      lastTimeRef.current = timestamp;
+    if (gs !== GAME_STATES.PLAYING) return;
 
-      // Update player
-      setPlayer(prev => {
-        // Check for RAM upgrade
-        const hasRamUpgrade = prev.upgrades.includes('ram');
-        
-        // RAM pressure slows you down SIGNIFICANTLY!
-        // RAM upgrade reduces slowdown effect by 50%
-        const baseSpeed = 3.5;
-        const slowdownFactor = hasRamUpgrade ? 0.004 : 0.008; // Half slowdown with upgrade
-        const ramSlowdown = 1 - (prev.ramPressure * slowdownFactor);
-        const speed = baseSpeed * Math.max(0.2, ramSlowdown);
-        
-        let newX = prev.x;
-        let newY = prev.y;
-        let isDashing = false;
-        let newDashEnergy = prev.dashEnergy;
-        
-        if (keys['w'] || keys['arrowup']) newY -= speed;
-        if (keys['s'] || keys['arrowdown']) newY += speed;
-        if (keys['a'] || keys['arrowleft']) newX -= speed;
-        if (keys['d'] || keys['arrowright']) newX += speed;
-        
-        if (keys['shift'] && prev.dashEnergy > 20) {
-          const dx = mousePos.x - prev.x;
-          const dy = mousePos.y - prev.y;
-          const len = Math.sqrt(dx*dx + dy*dy) || 1;
-          newX += (dx/len) * 10;
-          newY += (dy/len) * 10;
-          isDashing = true;
-          newDashEnergy -= 1.5;
-        } else {
-          newDashEnergy = Math.min(100, prev.dashEnergy + 0.2);
-        }
-        
-        newX = Math.max(16, Math.min(SCREEN_WIDTH - 16, newX));
-        newY = Math.max(MENUBAR_HEIGHT + 16, Math.min(SCREEN_HEIGHT - 16, newY));
-        
-        let newPowerUp = prev.powerUp;
-        let newPowerUpTimer = prev.powerUpTimer;
-        if (prev.powerUp && prev.powerUpTimer > 0) {
-          newPowerUpTimer--;
-          if (newPowerUpTimer <= 0) {
-            newPowerUp = null;
-          }
-        }
-        
-        return {
-          ...prev,
-          x: newX, y: newY,
-          isDashing,
-          dashEnergy: newDashEnergy,
-          empCharge: Math.min(100, prev.empCharge + 0.15),
-          cpuHeat: Math.max(0, prev.cpuHeat - 0.04), // Slower natural cooling
-          invincible: Math.max(0, prev.invincible - 1),
-          isHit: prev.invincible > 50,
-          powerUp: newPowerUp,
-          powerUpTimer: newPowerUpTimer
-        };
-      });
+    const keysSnap = snap.keys || {};
+    const mouseSnap = snap.mousePos || { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
+    const playerSnap = snap.player;
+    const enemiesSnap = snap.enemies;
+    const popupsSnap = snap.popups;
+    const folderWallsSnap = snap.folderWalls;
+    const deployablesSnap = snap.deployables;
+    const waveSnap = snap.wave;
+    const waveTimerSnap = snap.waveTimer;
+    const systemFolderHPSnap = snap.systemFolderHP;
+    const isShootingSnap = snap.isShooting;
 
-      // Shooting - CPU heat affects fire rate, overheating blocks shooting!
-      shootCooldownRef.current -= deltaTime;
-      const isOverheated = player.cpuHeat >= 90;
-      
-      // Check for hardware upgrades
-      const hasFanUpgrade = player.upgrades.includes('fan');
-      
-      if (isShooting && shootCooldownRef.current <= 0 && popups.length === 0 && player.powerUp !== 'giant' && !isOverheated) {
-        const dx = mousePos.x - player.x;
-        const dy = mousePos.y - player.y;
-        const len = Math.sqrt(dx*dx + dy*dy) || 1;
-        const dirX = dx / len;
-        const dirY = dy / len;
-        const speed = 8;
-        const angle = Math.atan2(dy, dx);
-        
-        // Spawn projectile from cursor tip (offset 14px in aim direction)
-        const tipOffset = 14;
-        const spawnX = player.x + dirX * tipOffset;
-        const spawnY = player.y + dirY * tipOffset;
-        
-        // Determine shot pattern
-        const isTriple = player.powerUp === 'triple';
-        
-        if (isTriple) {
-          // Triple shot power-up: 3 projectiles
-          const spread = 0.2;
-          setProjectiles(prev => [
-            ...prev,
-            { x: spawnX, y: spawnY, vx: dirX * speed, vy: dirY * speed, id: Math.random() },
-            { x: spawnX, y: spawnY, vx: Math.cos(angle - spread) * speed, vy: Math.sin(angle - spread) * speed, id: Math.random() },
-            { x: spawnX, y: spawnY, vx: Math.cos(angle + spread) * speed, vy: Math.sin(angle + spread) * speed, id: Math.random() }
-          ]);
-        } else {
-          // Single shot
-          setProjectiles(prev => [...prev, { x: spawnX, y: spawnY, vx: dirX * speed, vy: dirY * speed, id: Math.random() }]);
-        }
-        
-        // Fire rate affected by CPU heat (slower when hot)
-        let baseFireRate = player.powerUp === 'rapid' ? 60 : 180;
-        const heatPenalty = player.cpuHeat * 1.5; // Much slower at high heat
-        shootCooldownRef.current = baseFireRate + heatPenalty;
-        
-        // Shooting increases CPU heat
-        // Fan upgrade reduces heat buildup by 50%
-        let heatIncrease = player.powerUp === 'rapid' ? 4 : 6;
-        if (hasFanUpgrade) heatIncrease *= 0.5; // 50% less heat with fan!
-        setPlayer(prev => ({ ...prev, cpuHeat: Math.min(100, prev.cpuHeat + heatIncrease) }));
+    shootCooldownRef.current -= dt;
+    const isOverheated = playerSnap.cpuHeat >= 90;
+    const hasFanUpgrade = playerSnap.upgrades.includes('fan');
+
+    setPlayer((prev) => {
+      const hasRamUpgrade = prev.upgrades.includes('ram');
+      const baseSpeed = 3.5;
+      const slowdownFactor = hasRamUpgrade ? 0.004 : 0.008;
+      const ramSlowdown = 1 - prev.ramPressure * slowdownFactor;
+      const speed = baseSpeed * Math.max(0.2, ramSlowdown);
+
+      let newX = prev.x;
+      let newY = prev.y;
+      let isDashing = false;
+      let newDashEnergy = prev.dashEnergy;
+
+      if (keysSnap['w'] || keysSnap['arrowup']) newY -= speed;
+      if (keysSnap['s'] || keysSnap['arrowdown']) newY += speed;
+      if (keysSnap['a'] || keysSnap['arrowleft']) newX -= speed;
+      if (keysSnap['d'] || keysSnap['arrowright']) newX += speed;
+
+      if (keysSnap['shift'] && prev.dashEnergy > 20) {
+        const dx = mouseSnap.x - prev.x;
+        const dy = mouseSnap.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        newX += (dx / len) * 10;
+        newY += (dy / len) * 10;
+        isDashing = true;
+        newDashEnergy -= 1.5;
+      } else {
+        newDashEnergy = Math.min(100, prev.dashEnergy + 0.2);
       }
 
-      // Update projectiles
-      setProjectiles(prev => prev
-        .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy }))
-        .filter(p => p.x > -10 && p.x < SCREEN_WIDTH + 10 && p.y > MENUBAR_HEIGHT && p.y < SCREEN_HEIGHT + 10)
-      );
+      newX = Math.max(16, Math.min(SCREEN_WIDTH - 16, newX));
+      newY = Math.max(MENUBAR_HEIGHT + 16, Math.min(SCREEN_HEIGHT - 16, newY));
 
-      // Update enemies
-      setEnemies(prev => prev.map(enemy => {
+      let newPowerUp = prev.powerUp;
+      let newPowerUpTimer = prev.powerUpTimer;
+      if (prev.powerUp && prev.powerUpTimer > 0) {
+        newPowerUpTimer -= 1;
+        if (newPowerUpTimer <= 0) newPowerUp = null;
+      }
+
+      return {
+        ...prev,
+        x: newX,
+        y: newY,
+        isDashing,
+        dashEnergy: newDashEnergy,
+        empCharge: Math.min(100, prev.empCharge + 0.15),
+        cpuHeat: Math.max(0, prev.cpuHeat - 0.04),
+        invincible: Math.max(0, prev.invincible - 1),
+        isHit: prev.invincible > 50,
+        powerUp: newPowerUp,
+        powerUpTimer: newPowerUpTimer,
+      };
+    });
+
+    if (
+      isShootingSnap &&
+      shootCooldownRef.current <= 0 &&
+      popupsSnap.length === 0 &&
+      playerSnap.powerUp !== 'giant' &&
+      !isOverheated
+    ) {
+      const dx = mouseSnap.x - playerSnap.x;
+      const dy = mouseSnap.y - playerSnap.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const dirX = dx / len;
+      const dirY = dy / len;
+      const speed = 8;
+      const angle = Math.atan2(dy, dx);
+
+      const tipOffset = 14;
+      const spawnX = playerSnap.x + dirX * tipOffset;
+      const spawnY = playerSnap.y + dirY * tipOffset;
+
+      const isTriple = playerSnap.powerUp === 'triple';
+      if (isTriple) {
+        const spread = 0.2;
+        setProjectiles((prev) => [
+          ...prev,
+          { x: spawnX, y: spawnY, vx: dirX * speed, vy: dirY * speed, id: Math.random() },
+          { x: spawnX, y: spawnY, vx: Math.cos(angle - spread) * speed, vy: Math.sin(angle - spread) * speed, id: Math.random() },
+          { x: spawnX, y: spawnY, vx: Math.cos(angle + spread) * speed, vy: Math.sin(angle + spread) * speed, id: Math.random() },
+        ]);
+      } else {
+        setProjectiles((prev) => [...prev, { x: spawnX, y: spawnY, vx: dirX * speed, vy: dirY * speed, id: Math.random() }]);
+      }
+
+      const baseFireRate = playerSnap.powerUp === 'rapid' ? 60 : 180;
+      const heatPenalty = playerSnap.cpuHeat * 1.5;
+      shootCooldownRef.current = baseFireRate + heatPenalty;
+
+      let heatIncrease = playerSnap.powerUp === 'rapid' ? 4 : 6;
+      if (hasFanUpgrade) heatIncrease *= 0.5;
+      setPlayer((prev) => ({ ...prev, cpuHeat: Math.min(100, prev.cpuHeat + heatIncrease) }));
+    }
+
+    setProjectiles((prev) =>
+      prev
+        .map((p) => ({ ...p, x: p.x + p.vx, y: p.y + p.vy }))
+        .filter((p) => p.x > -10 && p.x < SCREEN_WIDTH + 10 && p.y > MENUBAR_HEIGHT && p.y < SCREEN_HEIGHT + 10)
+    );
+
+    setEnemies((prev) =>
+      prev.map((enemy) => {
         if (enemy.stunned > 0) return { ...enemy, stunned: enemy.stunned - 1 };
-        
-        let targetX = 320, targetY = 280;
-        
-        // Spy-dots chase player
+
+        let targetX = 320;
+        let targetY = 280;
+
         if (enemy.type === 'spy-dot') {
-          targetX = player.x;
-          targetY = player.y;
+          targetX = playerSnap.x;
+          targetY = playerSnap.y;
         }
-        
-        // Popup-gremlins bounce around crazily
+
         if (enemy.type === 'popup-gremlin') {
           const bounceTimer = (enemy.bounceTimer || 0) + 1;
           let bounceAngle = enemy.bounceAngle || 0;
           const baseFrame = Number.isFinite(enemy.frame) ? enemy.frame : 0;
-          const nextFrame = (baseFrame + deltaTime * 0.012) % 16;
-          
-          // Change direction randomly every ~40-80 frames
+          const nextFrame = (baseFrame + dt * 0.012) % 16;
+
           if (bounceTimer > 40 + Math.random() * 40) {
             bounceAngle = Math.random() * Math.PI * 2;
             return {
@@ -338,23 +495,21 @@ export default function DesktopWars() {
               y: enemy.y + Math.sin(bounceAngle) * enemy.speed * 2,
               bounceAngle,
               bounceTimer: 0,
-              frame: nextFrame
+              frame: nextFrame,
             };
           }
-          
-          // Move in current bounce direction, but also drift toward system folder
+
           const driftX = (320 - enemy.x) * 0.003;
           const driftY = (280 - enemy.y) * 0.003;
           let newX = enemy.x + Math.cos(bounceAngle) * enemy.speed + driftX;
           let newY = enemy.y + Math.sin(bounceAngle) * enemy.speed + driftY;
-          
-          // Bounce off walls
+
           if (newX < 10 || newX > SCREEN_WIDTH - 10) bounceAngle = Math.PI - bounceAngle;
           if (newY < MENUBAR_HEIGHT + 10 || newY > SCREEN_HEIGHT - 10) bounceAngle = -bounceAngle;
-          
+
           newX = Math.max(10, Math.min(SCREEN_WIDTH - 10, newX));
           newY = Math.max(MENUBAR_HEIGHT + 10, Math.min(SCREEN_HEIGHT - 10, newY));
-          
+
           return {
             ...enemy,
             x: newX,
@@ -362,448 +517,397 @@ export default function DesktopWars() {
             bounceAngle,
             bounceTimer,
             frame: nextFrame,
-            isHit: false
+            isHit: false,
           };
         }
-        
-        // Check for sticky note decoys - enemies prioritize them
-        const stickyNotes = deployables.filter(d => d.type === 'sticky');
+
+        const stickyNotes = deployablesSnap.filter((d) => d.type === 'sticky');
         if (stickyNotes.length > 0 && enemy.type !== 'spy-dot') {
-          const nearest = stickyNotes.reduce((closest, note) => {
-            const dist = Math.sqrt((enemy.x - note.x)**2 + (enemy.y - note.y)**2);
-            return dist < closest.dist ? { note, dist } : closest;
-          }, { note: null, dist: Infinity });
-          
+          const nearest = stickyNotes.reduce(
+            (closest, note) => {
+              const dist = Math.sqrt((enemy.x - note.x) ** 2 + (enemy.y - note.y) ** 2);
+              return dist < closest.dist ? { note, dist } : closest;
+            },
+            { note: null, dist: Infinity }
+          );
+
           if (nearest.dist < 150) {
             targetX = nearest.note.x + 12;
             targetY = nearest.note.y + 12;
           }
         }
-        
+
         const dx = targetX - enemy.x;
         const dy = targetY - enemy.y;
-        const len = Math.sqrt(dx*dx + dy*dy) || 1;
-        
-        let newX = enemy.x + (dx/len) * enemy.speed;
-        let newY = enemy.y + (dy/len) * enemy.speed;
-        
-        // Collision with folder walls
-        for (const wall of folderWalls) {
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        let newX = enemy.x + (dx / len) * enemy.speed;
+        let newY = enemy.y + (dy / len) * enemy.speed;
+
+        for (const wall of folderWallsSnap) {
           if (wall.hp <= 0) continue;
-          const wallDist = Math.sqrt((newX - wall.x - 12)**2 + (newY - wall.y - 12)**2);
+          const wallDist = Math.sqrt((newX - wall.x - 12) ** 2 + (newY - wall.y - 12) ** 2);
           if (wallDist < enemy.size / 2 + 12) {
-            // Blocked by wall - damage it slightly
-            setFolderWalls(walls => walls.map(w => 
-              w.id === wall.id ? { ...w, hp: w.hp - 0.01 } : w
-            ));
+            setFolderWalls((walls) => walls.map((w) => (w.id === wall.id ? { ...w, hp: w.hp - 0.01 } : w)));
             newX = enemy.x;
             newY = enemy.y;
             break;
           }
         }
-        
+
         const baseFrame = Number.isFinite(enemy.frame) ? enemy.frame : 0;
         let nextFrame = baseFrame;
-        if (enemy.type === 'regi-mite') nextFrame = (baseFrame + deltaTime * 0.02) % 16;
-        if (enemy.type === 'spy-dot') nextFrame = (baseFrame + deltaTime * 0.03) % 16;
+        if (enemy.type === 'regi-mite') nextFrame = (baseFrame + dt * 0.02) % 16;
+        if (enemy.type === 'spy-dot') nextFrame = (baseFrame + dt * 0.03) % 16;
 
-        return {
-          ...enemy,
-          x: newX,
-          y: newY,
-          frame: nextFrame,
-          isHit: false
-        };
-      }));
+        return { ...enemy, x: newX, y: newY, frame: nextFrame, isHit: false };
+      })
+    );
 
-      // Watchdog auto-turret (aim + shoot)
-      const watchdog = deployables.find((d) => d.type === 'watchdog');
-      if (watchdog) {
-        let nearestEnemy = null;
-        let nearestDist = 200; // Range
-        for (const enemy of enemies) {
-          const dist = Math.sqrt((enemy.x - watchdog.x - 12) ** 2 + (enemy.y - watchdog.y - 12) ** 2);
-          if (dist < nearestDist) {
-            nearestDist = dist;
-            nearestEnemy = enemy;
-          }
-        }
-
-        if (nearestEnemy) {
-          const dx = nearestEnemy.x - watchdog.x - 12;
-          const dy = nearestEnemy.y - watchdog.y - 12;
-          const aimDir = quantizeWatchdogDir(dx, dy);
-
-          setDeployables((prev) => {
-            let changed = false;
-            const next = prev.map((d) => {
-              if (d.id !== watchdog.id) return d;
-              const currentAimDir = Number.isFinite(d.aimDir) ? d.aimDir : 7;
-              if (currentAimDir === aimDir) return d;
-              changed = true;
-              return { ...d, aimDir };
-            });
-            return changed ? next : prev;
-          });
-
-          // Shoot at nearest enemy (every ~30 frames)
-          if (Math.random() < 0.03) {
-            const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            setProjectiles((prev) => [
-              ...prev,
-              {
-                x: watchdog.x + 12,
-                y: watchdog.y + 12,
-                vx: (dx / len) * 6,
-                vy: (dy / len) * 6,
-                id: Math.random(),
-                fromWatchdog: true,
-              },
-            ]);
-          }
-        } else {
-          // Idle facing: south-west (matches sprite sheet index 7)
-          const idleDir = 7;
-          setDeployables((prev) => {
-            let changed = false;
-            const next = prev.map((d) => {
-              if (d.id !== watchdog.id) return d;
-              const currentAimDir = Number.isFinite(d.aimDir) ? d.aimDir : idleDir;
-              if (currentAimDir === idleDir) return d;
-              changed = true;
-              return { ...d, aimDir: idleDir };
-            });
-            return changed ? next : prev;
-          });
+    const watchdog = deployablesSnap.find((d) => d.type === 'watchdog');
+    if (watchdog) {
+      let nearestEnemy = null;
+      let nearestDist = 200;
+      for (const enemy of enemiesSnap) {
+        const dist = Math.sqrt((enemy.x - watchdog.x - 12) ** 2 + (enemy.y - watchdog.y - 12) ** 2);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestEnemy = enemy;
         }
       }
 
-      // Projectile hits
-      setProjectiles(prev => {
-        const remaining = [];
-        for (const proj of prev) {
-          let hit = false;
-          setEnemies(enemies => enemies.map(enemy => {
-            if (hit) return enemy;
-            const dist = Math.sqrt((proj.x - enemy.x)**2 + (proj.y - enemy.y)**2);
-            if (dist < enemy.size / 2 + 5) {
-              hit = true;
-              const newHp = enemy.hp - 1;
-              if (newHp <= 0) {
-                // Drop item
-                const rand = Math.random();
-                let dropType = null;
-                if (rand < 0.20) dropType = 'apple';
-                else if (rand < 0.28) dropType = 'coolant';
-                else if (rand < 0.36) dropType = 'powerup-rapid';
-                else if (rand < 0.44) dropType = 'powerup-triple';
-                else if (rand < 0.50) dropType = 'powerup-giant';
-                
-                if (dropType) {
-                  setPickups(p => [...p, { x: enemy.x, y: enemy.y, type: dropType, id: Math.random() }]);
-                }
-                
-                // Drop clutter (junk files) - 70% chance
-                if (Math.random() < 0.7) {
-                  setClutter(c => [...c, { 
-                    x: enemy.x + (Math.random() - 0.5) * 30, 
-                    y: enemy.y + (Math.random() - 0.5) * 30, 
-                    id: Math.random() 
-                  }]);
-                  // Clutter increases RAM pressure A LOT
-                  setPlayer(p => ({ ...p, ramPressure: Math.min(100, p.ramPressure + 8) }));
-                }
-                
-                setScore(s => s + 10);
-                return null;
-              }
-              return { ...enemy, hp: newHp, isHit: true };
-            }
-            return enemy;
-          }).filter(Boolean));
-          if (!hit) remaining.push(proj);
-        }
-        return remaining;
-      });
+      if (nearestEnemy) {
+        const dx = nearestEnemy.x - watchdog.x - 12;
+        const dy = nearestEnemy.y - watchdog.y - 12;
+        const aimDir = quantizeWatchdogDir(dx, dy);
 
-      // Player collision with enemies
-      if (player.invincible <= 0) {
-        const collisionRadius = player.powerUp === 'giant' ? 24 : 10;
-        for (const enemy of enemies) {
-          if (enemy.stunned > 0) continue;
-          const dist = Math.sqrt((enemy.x - player.x)**2 + (enemy.y - player.y)**2);
-          if (dist < enemy.size / 2 + collisionRadius) {
-            if (player.powerUp === 'giant') {
-              setEnemies(prev => prev.map(e => {
-                if (e.id === enemy.id) {
+        setDeployables((prev) => {
+          let changed = false;
+          const next = prev.map((d) => {
+            if (d.id !== watchdog.id) return d;
+            const currentAimDir = Number.isFinite(d.aimDir) ? d.aimDir : 7;
+            if (currentAimDir === aimDir) return d;
+            changed = true;
+            return { ...d, aimDir };
+          });
+          return changed ? next : prev;
+        });
+
+        if (Math.random() < 0.03) {
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          setProjectiles((prev) => [
+            ...prev,
+            { x: watchdog.x + 12, y: watchdog.y + 12, vx: (dx / len) * 6, vy: (dy / len) * 6, id: Math.random(), fromWatchdog: true },
+          ]);
+        }
+      } else {
+        const idleDir = 7;
+        setDeployables((prev) => {
+          let changed = false;
+          const next = prev.map((d) => {
+            if (d.id !== watchdog.id) return d;
+            const currentAimDir = Number.isFinite(d.aimDir) ? d.aimDir : idleDir;
+            if (currentAimDir === idleDir) return d;
+            changed = true;
+            return { ...d, aimDir: idleDir };
+          });
+          return changed ? next : prev;
+        });
+      }
+    }
+
+    setProjectiles((prev) => {
+      const remaining = [];
+      for (const proj of prev) {
+        let hit = false;
+        setEnemies((enemiesNow) =>
+          enemiesNow
+            .map((enemy) => {
+              if (hit) return enemy;
+              const dist = Math.sqrt((proj.x - enemy.x) ** 2 + (proj.y - enemy.y) ** 2);
+              if (dist < enemy.size / 2 + 5) {
+                hit = true;
+                const newHp = enemy.hp - 1;
+                if (newHp <= 0) {
+                  const rand = Math.random();
+                  let dropType = null;
+                  if (rand < 0.2) dropType = 'apple';
+                  else if (rand < 0.28) dropType = 'coolant';
+                  else if (rand < 0.36) dropType = 'powerup-rapid';
+                  else if (rand < 0.44) dropType = 'powerup-triple';
+                  else if (rand < 0.5) dropType = 'powerup-giant';
+
+                  if (dropType) setPickups((p) => [...p, { x: enemy.x, y: enemy.y, type: dropType, id: Math.random() }]);
+
+                  if (Math.random() < 0.7) {
+                    setClutter((c) => [
+                      ...c,
+                      { x: enemy.x + (Math.random() - 0.5) * 30, y: enemy.y + (Math.random() - 0.5) * 30, id: Math.random() },
+                    ]);
+                    setPlayer((p) => ({ ...p, ramPressure: Math.min(100, p.ramPressure + 8) }));
+                  }
+
+                  setScore((s) => s + 10);
+                  return null;
+                }
+                return { ...enemy, hp: newHp, isHit: true };
+              }
+              return enemy;
+            })
+            .filter(Boolean)
+        );
+        if (!hit) remaining.push(proj);
+      }
+      return remaining;
+    });
+
+    if (playerSnap.invincible <= 0) {
+      const collisionRadius = playerSnap.powerUp === 'giant' ? 24 : 10;
+      for (const enemy of enemiesSnap) {
+        if (enemy.stunned > 0) continue;
+        const dist = Math.sqrt((enemy.x - playerSnap.x) ** 2 + (enemy.y - playerSnap.y) ** 2);
+        if (dist < enemy.size / 2 + collisionRadius) {
+          if (playerSnap.powerUp === 'giant') {
+            setEnemies((prev) =>
+              prev
+                .map((e) => {
+                  if (e.id !== enemy.id) return e;
                   if (e.hp <= 3) {
-                    setScore(s => s + 10);
+                    setScore((s) => s + 10);
                     return null;
                   }
                   return { ...e, hp: e.hp - 3, stunned: 30 };
-                }
-                return e;
-              }).filter(Boolean));
-            } else if (!player.isDashing) {
-              setPlayer(prev => ({ ...prev, hp: prev.hp - 1, invincible: 60, isHit: true }));
-              break;
-            }
+                })
+                .filter(Boolean)
+            );
+          } else if (!playerSnap.isDashing) {
+            setPlayer((prev) => ({ ...prev, hp: prev.hp - 1, invincible: 60, isHit: true }));
+            break;
           }
         }
       }
+    }
 
-      // System folder damage
-      for (const enemy of enemies) {
-        if (enemy.stunned > 0) continue;
-        const dist = Math.sqrt((enemy.x - 320)**2 + (enemy.y - 280)**2);
-        if (dist < 35) {
-          setSystemFolderHP(prev => Math.max(0, prev - 0.05));
-        }
-      }
+    for (const enemy of enemiesSnap) {
+      if (enemy.stunned > 0) continue;
+      const dist = Math.sqrt((enemy.x - 320) ** 2 + (enemy.y - 280) ** 2);
+      if (dist < 35) setSystemFolderHP((prev) => Math.max(0, prev - 0.05));
+    }
 
-      // Pickup collection
-      setPickups(prev => prev.filter(pickup => {
-        const dist = Math.sqrt((pickup.x - player.x)**2 + (pickup.y - player.y)**2);
+    setPickups((prev) =>
+      prev.filter((pickup) => {
+        const dist = Math.sqrt((pickup.x - playerSnap.x) ** 2 + (pickup.y - playerSnap.y) ** 2);
         if (dist < 20) {
-          if (pickup.type === 'apple') setPlayer(p => ({ ...p, hp: Math.min(p.maxHp, p.hp + 1) }));
-          else if (pickup.type === 'coolant') setPlayer(p => ({ ...p, cpuHeat: Math.max(0, p.cpuHeat - 60) }));
-          else if (pickup.type === 'powerup-rapid') setPlayer(p => ({ ...p, powerUp: 'rapid', powerUpTimer: 480 }));
-          else if (pickup.type === 'powerup-triple') setPlayer(p => ({ ...p, powerUp: 'triple', powerUpTimer: 480 }));
-          else if (pickup.type === 'powerup-giant') setPlayer(p => ({ ...p, powerUp: 'giant', powerUpTimer: 360 }));
+          if (pickup.type === 'apple') setPlayer((p) => ({ ...p, hp: Math.min(p.maxHp, p.hp + 1) }));
+          else if (pickup.type === 'coolant') setPlayer((p) => ({ ...p, cpuHeat: Math.max(0, p.cpuHeat - 60) }));
+          else if (pickup.type === 'powerup-rapid') setPlayer((p) => ({ ...p, powerUp: 'rapid', powerUpTimer: 480 }));
+          else if (pickup.type === 'powerup-triple') setPlayer((p) => ({ ...p, powerUp: 'triple', powerUpTimer: 480 }));
+          else if (pickup.type === 'powerup-giant') setPlayer((p) => ({ ...p, powerUp: 'giant', powerUpTimer: 360 }));
           return false;
         }
         return true;
-      }));
+      })
+    );
 
-      // Spawn enemies - gradual difficulty based on wave and time
-      spawnTimerRef.current -= deltaTime;
-      if (spawnTimerRef.current <= 0) {
-        // Wave 1: Slow, only basic enemies
-        // Wave 2: Medium, add gremlins
-        // Wave 3: Fast, all enemy types
-        
-        const spawnRates = { 1: 3500, 2: 2800, 3: 2200 };
-        const waveTimeBonus = Math.min((90 - waveTimer) * 15, 800); // Gets faster within each wave
-        spawnTimerRef.current = Math.max(1200, (spawnRates[wave] || 3000) - waveTimeBonus);
-        
-        // Choose spawn side: 0 = left, 1 = right, 2 = bottom
-        const side = Math.floor(Math.random() * 3);
-        let spawnX, spawnY;
-        
-        const regiSize = 64;
-        if (side === 0) {
-          spawnX = -regiSize / 2;
-          spawnY = MENUBAR_HEIGHT + regiSize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - regiSize);
-        } else if (side === 1) {
-          spawnX = SCREEN_WIDTH + regiSize / 2;
-          spawnY = MENUBAR_HEIGHT + regiSize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - regiSize);
-        } else {
-          spawnX = regiSize / 2 + Math.random() * (SCREEN_WIDTH - regiSize);
-          spawnY = SCREEN_HEIGHT + regiSize / 2;
-        }
-        
-        // Always spawn basic regi-mite
-        const enemySpeed = 0.5 + (wave * 0.15) + Math.random() * 0.2;
-        setEnemies(prev => [...prev, {
-          id: Math.random(),
-          type: 'regi-mite',
-          x: spawnX,
-          y: spawnY,
-          hp: wave >= 3 ? 3 : 2,
-          size: 64,
-          flipX: side === 0,
-          speed: enemySpeed,
-          frame: 0,
-          stunned: 0
-        }]);
-        
-        // Wave 2+: Add popup-gremlins (crazy bouncy enemies)
-        if (wave >= 2 && Math.random() < 0.25) {
-          const gSide = Math.floor(Math.random() * 3);
-          let gX, gY;
-          if (gSide === 0) { gX = -15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
-          else if (gSide === 1) { gX = SCREEN_WIDTH + 15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
-          else { gX = 80 + Math.random() * (SCREEN_WIDTH - 160); gY = SCREEN_HEIGHT + 15; }
-          
-          setEnemies(prev => [...prev, {
-            id: Math.random(),
-            type: 'popup-gremlin',
-            x: gX,
-            y: gY,
-            hp: 1.5,
-            size: 36,
-            speed: 1.3 + Math.random() * 0.5,
-            frame: Math.random() * 16,
-            stunned: 0,
-            bounceAngle: Math.random() * Math.PI * 2,
-            bounceTimer: 0
-          }]);
-        }
-        
-        // Wave 2+: Add spy-dots (less common)
-        if (wave >= 2 && Math.random() < 0.15) {
-          const spySize = 64;
-          const sSide = Math.floor(Math.random() * 3);
-          let sX, sY;
-          if (sSide === 0) { sX = -spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
-          else if (sSide === 1) { sX = SCREEN_WIDTH + spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
-          else { sX = spySize / 2 + Math.random() * (SCREEN_WIDTH - spySize); sY = SCREEN_HEIGHT + spySize / 2; }
-          
-          setEnemies(prev => [...prev, {
-            id: Math.random(),
-            type: 'spy-dot',
-            x: sX,
-            y: sY,
-            hp: 0.5,
-            size: spySize,
-            speed: 0.35,
-            frame: 0,
-            stunned: 0
-          }]);
-        }
-        
-        // Wave 3: Extra enemies spawn
-        if (wave === 3 && Math.random() < 0.3) {
-          const eSide = Math.floor(Math.random() * 3);
-          let eX, eY;
-          if (eSide === 0) { eX = -15; eY = MENUBAR_HEIGHT + 100 + Math.random() * 200; }
-          else if (eSide === 1) { eX = SCREEN_WIDTH + 15; eY = MENUBAR_HEIGHT + 100 + Math.random() * 200; }
-          else { eX = 100 + Math.random() * (SCREEN_WIDTH - 200); eY = SCREEN_HEIGHT + 15; }
-          
-          const extraType = Math.random() < 0.5 ? 'regi-mite' : 'popup-gremlin';
-          setEnemies(prev => [...prev, {
-            id: Math.random(),
-            type: extraType,
-            x: eX,
-            y: eY,
-            hp: extraType === 'regi-mite' ? 2 : 1.5,
-            size: extraType === 'regi-mite' ? 64 : 36,
-            flipX: eSide === 0,
-            speed: 0.8 + Math.random() * 0.4,
-            frame: 0,
-            stunned: 0,
-            bounceAngle: Math.random() * Math.PI * 2,
-            bounceTimer: 0
-          }]);
-        }
+    spawnTimerRef.current -= dt;
+    if (spawnTimerRef.current <= 0) {
+      const spawnRates = { 1: 3500, 2: 2800, 3: 2200 };
+      const waveTimeBonus = Math.min((90 - waveTimerSnap) * 15, 800);
+      spawnTimerRef.current = Math.max(1200, (spawnRates[waveSnap] || 3000) - waveTimeBonus);
+
+      const side = Math.floor(Math.random() * 3);
+      let spawnX;
+      let spawnY;
+
+      const regiSize = 64;
+      if (side === 0) {
+        spawnX = -regiSize / 2;
+        spawnY = MENUBAR_HEIGHT + regiSize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - regiSize);
+      } else if (side === 1) {
+        spawnX = SCREEN_WIDTH + regiSize / 2;
+        spawnY = MENUBAR_HEIGHT + regiSize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - regiSize);
+      } else {
+        spawnX = regiSize / 2 + Math.random() * (SCREEN_WIDTH - regiSize);
+        spawnY = SCREEN_HEIGHT + regiSize / 2;
       }
 
-      // Popup spawning - starts in wave 1, increases over time
-      popupTimerRef.current -= deltaTime;
-      if (popupTimerRef.current <= 0 && popups.length === 0 && wave >= 1) {
-        // Longer delays at start, shorter as waves progress
-        const baseDelay = { 1: 18000, 2: 14000, 3: 10000 }[wave] || 15000;
-        const waveProgress = (90 - waveTimer) / 90; // 0 to 1 within wave
-        popupTimerRef.current = baseDelay * (1 - waveProgress * 0.3);
-        
-        // Popup chance increases with waves
-        const popupChance = { 1: 0.4, 2: 0.55, 3: 0.7 }[wave] || 0.5;
-        
-        if (Math.random() < popupChance) {
-          const rand = Math.random();
-          let popupType = rand < 0.4 ? 'firewall' : rand < 0.7 ? 'fake-update' : 'security-update';
-          
-          // Swap chance increases with wave: Wave 1 = 15%, Wave 2 = 40%, Wave 3 = 65%
-          const swapChance = { 1: 0.15, 2: 0.40, 3: 0.65 }[wave] || 0.3;
-          
-          setPopups([{
-            id: Math.random(),
-            type: popupType,
-            x: 80 + Math.random() * 360,
-            y: 50 + Math.random() * 250,
-            swapped: Math.random() < swapChance,
-            isLegit: popupType === 'security-update'
-          }]);
-        }
+      const enemySpeed = 0.5 + waveSnap * 0.15 + Math.random() * 0.2;
+      setEnemies((prev) => [
+        ...prev,
+        { id: Math.random(), type: 'regi-mite', x: spawnX, y: spawnY, hp: waveSnap >= 3 ? 3 : 2, size: 64, flipX: side === 0, speed: enemySpeed, frame: 0, stunned: 0 },
+      ]);
+
+      if (waveSnap >= 2 && Math.random() < 0.25) {
+        const gSide = Math.floor(Math.random() * 3);
+        let gX;
+        let gY;
+        if (gSide === 0) { gX = -15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
+        else if (gSide === 1) { gX = SCREEN_WIDTH + 15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
+        else { gX = 80 + Math.random() * (SCREEN_WIDTH - 160); gY = SCREEN_HEIGHT + 15; }
+
+        setEnemies((prev) => [
+          ...prev,
+          { id: Math.random(), type: 'popup-gremlin', x: gX, y: gY, hp: 1.5, size: 36, speed: 1.3 + Math.random() * 0.5, frame: Math.random() * 16, stunned: 0, bounceAngle: Math.random() * Math.PI * 2, bounceTimer: 0 },
+        ]);
       }
 
-      // Wave timer - counts down, triggers next wave
-      setWaveTimer(prev => {
-        const newTime = prev - deltaTime / 1000;
-        if (newTime <= 0) {
-          if (wave === 1) {
-            setWave(2);
-            return 90; // Reset for wave 2
-          } else if (wave === 2) {
-            setGameState(GAME_STATES.INTERMISSION);
-            return 90;
-          } else if (wave === 3) {
-            setGameState(GAME_STATES.WIN);
-            return 0;
-          }
-        }
-        return Math.max(0, newTime);
-      });
-      
-      // Track total time
-      setTotalTime(prev => prev + deltaTime / 1000);
+      if (waveSnap >= 2 && Math.random() < 0.15) {
+        const spySize = 64;
+        const sSide = Math.floor(Math.random() * 3);
+        let sX;
+        let sY;
+        if (sSide === 0) { sX = -spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
+        else if (sSide === 1) { sX = SCREEN_WIDTH + spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
+        else { sX = spySize / 2 + Math.random() * (SCREEN_WIDTH - spySize); sY = SCREEN_HEIGHT + spySize / 2; }
 
-      // Game over check
-      if (player.hp <= 0 || systemFolderHP <= 0) {
-        setGameState(GAME_STATES.GAMEOVER);
-        return;
+        setEnemies((prev) => [...prev, { id: Math.random(), type: 'spy-dot', x: sX, y: sY, hp: 0.5, size: spySize, speed: 0.35, frame: 0, stunned: 0 }]);
       }
 
-      animFrameRef.current = requestAnimationFrame(gameLoop);
+      if (waveSnap === 3 && Math.random() < 0.3) {
+        const eSide = Math.floor(Math.random() * 3);
+        let eX;
+        let eY;
+        if (eSide === 0) { eX = -15; eY = MENUBAR_HEIGHT + 100 + Math.random() * 200; }
+        else if (eSide === 1) { eX = SCREEN_WIDTH + 15; eY = MENUBAR_HEIGHT + 100 + Math.random() * 200; }
+        else { eX = 100 + Math.random() * (SCREEN_WIDTH - 200); eY = SCREEN_HEIGHT + 15; }
+
+        const extraType = Math.random() < 0.5 ? 'regi-mite' : 'popup-gremlin';
+        setEnemies((prev) => [
+          ...prev,
+          { id: Math.random(), type: extraType, x: eX, y: eY, hp: extraType === 'regi-mite' ? 2 : 1.5, size: extraType === 'regi-mite' ? 64 : 36, flipX: eSide === 0, speed: 0.8 + Math.random() * 0.4, frame: 0, stunned: 0, bounceAngle: Math.random() * Math.PI * 2, bounceTimer: 0 },
+        ]);
+      }
+    }
+
+    popupTimerRef.current -= dt;
+    if (popupTimerRef.current <= 0 && popupsSnap.length === 0 && waveSnap >= 1) {
+      const baseDelay = { 1: 18000, 2: 14000, 3: 10000 }[waveSnap] || 15000;
+      const waveProgress = (90 - waveTimerSnap) / 90;
+      popupTimerRef.current = baseDelay * (1 - waveProgress * 0.3);
+
+      const popupChance = { 1: 0.4, 2: 0.55, 3: 0.7 }[waveSnap] || 0.5;
+      if (Math.random() < popupChance) {
+        const rand = Math.random();
+        const popupType = rand < 0.4 ? 'firewall' : rand < 0.7 ? 'fake-update' : 'security-update';
+        const swapChance = { 1: 0.15, 2: 0.4, 3: 0.65 }[waveSnap] || 0.3;
+
+        setPopups([
+          { id: Math.random(), type: popupType, x: 80 + Math.random() * 360, y: 50 + Math.random() * 250, swapped: Math.random() < swapChance, isLegit: popupType === 'security-update', countdown: 100 },
+        ]);
+      }
+    }
+
+    setWaveTimer((prev) => {
+      const newTime = prev - dt / 1000;
+      if (newTime <= 0) {
+        if (waveSnap === 1) {
+          setWave(2);
+          return 90;
+        }
+        if (waveSnap === 2) {
+          setGameState(GAME_STATES.INTERMISSION);
+          return 90;
+        }
+        if (waveSnap === 3) {
+          setGameState(GAME_STATES.WIN);
+          return 0;
+        }
+      }
+      return Math.max(0, newTime);
+    });
+
+    setTotalTime((prev) => prev + dt / 1000);
+
+    setEmpExplosion((prev) => {
+      if (!prev || !Number.isFinite(prev.t0)) return prev;
+      const age = snap.totalTime + dt / 1000 - prev.t0;
+      return age > 0.6 ? null : prev;
+    });
+
+    if (playerSnap.hp <= 0 || systemFolderHPSnap <= 0) {
+      setGameState(GAME_STATES.GAMEOVER);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isWebdriver) return;
+    if (gameState !== GAME_STATES.PLAYING && gameState !== GAME_STATES.SETUP) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    const loop = (timestamp) => {
+      if (cancelled) return;
+      const dt = Math.min(timestamp - lastTimeRef.current, 50);
+      lastTimeRef.current = timestamp;
+      tick(dt);
+      animFrameRef.current = requestAnimationFrame(loop);
     };
 
     lastTimeRef.current = performance.now();
-    animFrameRef.current = requestAnimationFrame(gameLoop);
-    
+    animFrameRef.current = requestAnimationFrame(loop);
     return () => {
+      cancelled = true;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
     };
-  }, [gameState, keys, isShooting, mousePos, wave, player, enemies, popups, systemFolderHP, folderWalls, deployables, waveTimer, clutter]);
+  }, [gameState, isWebdriver, tick]);
 
-  // Setup timer
   useEffect(() => {
-    if (gameState !== GAME_STATES.SETUP) return;
-    const interval = setInterval(() => {
-      setSetupTimer(prev => {
-        if (prev <= 1) {
-          setGameState(GAME_STATES.PLAYING);
-          setWave(1);
-          return 25;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [gameState]);
+    window.render_game_to_text = () => {
+      const s = stateRef.current;
+      if (!s) return null;
+      const payload = {
+        mode: s.gameState,
+        coords: { origin: 'top-left', x: 'right', y: 'down', units: 'px' },
+        wave: s.wave,
+        wave_timer_s: Number.isFinite(s.waveTimer) ? s.waveTimer : 0,
+        score: s.score,
+        system_folder_hp: s.systemFolderHP,
+        player: {
+          x: s.player.x,
+          y: s.player.y,
+          hp: s.player.hp,
+          cpu_heat: s.player.cpuHeat,
+          ram_pressure: s.player.ramPressure,
+          emp: s.player.empCharge,
+          power_up: s.player.powerUp,
+        },
+        enemies: s.enemies.map((e) => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, stunned: e.stunned, size: e.size })),
+        pickups: s.pickups.map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y })),
+        projectiles: s.projectiles.map((p) => ({ id: p.id, x: p.x, y: p.y, from_watchdog: !!p.fromWatchdog })),
+        folder_walls: s.folderWalls.map((w) => ({ id: w.id, x: w.x, y: w.y, hp: w.hp })),
+        deployables: s.deployables.map((d) => ({ id: d.id, type: d.type, x: d.x, y: d.y, aim_dir: d.aimDir })),
+        popups: s.popups.map((p) => ({ id: p.id, type: p.type, swapped: p.swapped, countdown: p.countdown })),
+        clutter_count: s.clutter.length,
+      };
+      return JSON.stringify(payload);
+    };
 
-  const startGame = useCallback(() => {
-    setPlayer(createInitialPlayer());
-    setEnemies([]);
-    setProjectiles([]);
-    setPickups([]);
-    setClutter([]);
-    setPopups([]);
-    setFolderWalls([]);
-    setDeployables([]);
-    setWave(0);
-    setWaveTimer(90); // 90 seconds per wave
-    setTotalTime(0);
-    setSetupTimer(25);
-    setSystemFolderHP(100);
-    setScore(0);
-    setPrivacyScore(100);
-    setIsShooting(false);
-    setEmpExplosion(null);
-    shootCooldownRef.current = 0;
-    spawnTimerRef.current = 3000;
-    popupTimerRef.current = 15000;
-    setSeed(Math.random().toString(36).substring(2, 10).toUpperCase());
-    setTimeout(() => setGameState(GAME_STATES.SETUP), 50);
-  }, []);
+    window.advanceTime = async (ms) => {
+      const frameMs = 1000 / 60;
+      const steps = Math.max(1, Math.round(ms / frameMs));
+      for (let i = 0; i < steps; i += 1) {
+        ReactDOM.flushSync(() => tick(frameMs));
+      }
+    };
 
-  const continueFromIntermission = useCallback((upgrade) => {
-    setPlayer(prev => ({ ...prev, upgrades: [...prev.upgrades, upgrade] }));
-    setWave(3);
-    setWaveTimer(90); // Reset timer for wave 3
-    setTimeout(() => setGameState(GAME_STATES.PLAYING), 100);
-  }, []);
+    return () => {
+      delete window.render_game_to_text;
+      delete window.advanceTime;
+    };
+  }, [tick]);
 
-  const VIEW_SCALE = 1.15;
+  // Playwright+SwiftShader has shown partial canvas updates when the WebGL canvas is under a CSS
+  // transform. Keep scale at 1 during webdriver runs so automation captures are reliable.
+  const BASE_VIEW_SCALE = isWebdriver ? 1 : 1.15;
+  const fitScale = Math.min(
+    (viewport.w * 0.96) / CRT_MONITOR_LAYOUT.width,
+    (viewport.h * 0.96) / CRT_MONITOR_LAYOUT.height
+  );
+  const VIEW_SCALE = isFullscreen ? Math.max(1, Math.min(2.25, fitScale)) : BASE_VIEW_SCALE;
   const SCREEN_CORNER_RADIUS = 28;
   const monitorWidth = CRT_MONITOR_LAYOUT.width * VIEW_SCALE;
   const monitorHeight = CRT_MONITOR_LAYOUT.height * VIEW_SCALE;
@@ -835,19 +939,36 @@ export default function DesktopWars() {
 
       {/* Top Section: Monitor */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          {/* CRT Monitor */}
-          <div
-            style={{
-              width: monitorWidth,
-              height: monitorHeight,
-              position: 'relative',
-              filter: 'drop-shadow(0 25px 80px rgba(0,0,0,0.6))',
-            }}
-          >
-            {/* Screen */}
-            <div
-              style={{
+	        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+	          {/* CRT Monitor (fullscreen target) */}
+	          <div
+	            ref={fullscreenRef}
+	            style={
+	              isFullscreen
+	                ? {
+	                    width: '100vw',
+	                    height: '100vh',
+	                    display: 'flex',
+	                    alignItems: 'center',
+	                    justifyContent: 'center',
+	                    background: 'radial-gradient(1000px 700px at 50% 30%, rgba(120,150,255,0.18), rgba(0,0,0,0))',
+	                    padding: 18,
+	                    boxSizing: 'border-box',
+	                  }
+	                : undefined
+	            }
+	          >
+	            <div
+	              style={{
+	                width: monitorWidth,
+	                height: monitorHeight,
+	                position: 'relative',
+	                filter: 'drop-shadow(0 25px 80px rgba(0,0,0,0.6))',
+	              }}
+	            >
+	            {/* Screen */}
+	            <div
+	              style={{
                 position: 'absolute',
                 left: screenLeft,
                 top: screenTop,
@@ -857,8 +978,8 @@ export default function DesktopWars() {
                 borderRadius: screenBorderRadius,
                 background: '#000',
                 zIndex: 5,
-              }}
-            >
+	              }}
+	            >
               <div
                 ref={gameRef}
                 onMouseMove={handleMouseMove}
@@ -878,32 +999,104 @@ export default function DesktopWars() {
                   position: 'relative',
                   transform: `scale(${VIEW_SCALE})`,
                   transformOrigin: 'top left',
-                  cursor: gameState === GAME_STATES.PLAYING ? 'none' : 'default',
-                }}
-              >
-	            {/* Desktop Background */}
-	            <Sprite
-	              src={SPRITES.wallpaper}
-	              alt="Wallpaper"
-	              width={SCREEN_WIDTH}
-	              height={SCREEN_HEIGHT}
-	              style={{
-	                position: 'absolute',
-	                inset: 0,
-	                width: '100%',
-	                height: '100%',
-	                objectFit: 'cover',
-	              }}
-	              fallback={
-	                <div
-	                  style={{
-	                    position: 'absolute',
-	                    inset: 0,
-	                    background: 'linear-gradient(180deg, #d4c4a8 0%, #bfad84 100%)',
-	                  }}
-	                />
-	              }
-	            />
+		              cursor: gameState === GAME_STATES.PLAYING ? 'none' : 'default',
+		            }}
+		          >
+                {useWebGL ? (
+                  <ThreeScreen
+                    state={{
+                      mode: gameState,
+                      totalTime,
+                      player,
+                      enemies,
+                      pickups,
+                      folderWalls,
+                      deployables,
+                      clutter,
+                      projectiles,
+                      systemFolderHP,
+                      empExplosion,
+                      mousePos,
+                      trash: { x: 580, y: 420 },
+                    }}
+                    onInitFailed={() => setUseWebGL(false)}
+                  />
+                ) : (
+                  <Sprite
+                    src={SPRITES.wallpaper}
+                    width={SCREEN_WIDTH}
+                    height={SCREEN_HEIGHT}
+                    pixelated={false}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    fallback={
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'linear-gradient(180deg, #233257 0%, #121826 55%, #0b1020 100%)',
+                        }}
+                      />
+                    }
+                  />
+                )}
+
+                {/* DOM fallback renderer when WebGL is disabled/unavailable. */}
+                {!useWebGL && (gameState === GAME_STATES.SETUP || gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) && (
+                  <>
+                    <SystemFolder x={320} y={280} hp={systemFolderHP} />
+
+                    {folderWalls.map((wall) => (
+                      <FolderWall key={wall.id} {...wall} />
+                    ))}
+
+                    {deployables.map((d) => (
+                      <Deployable key={d.id} {...d} />
+                    ))}
+
+                    {(gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) && (
+                      <>
+                        {clutter.map((c) => (
+                          <Clutter key={c.id} {...c} />
+                        ))}
+
+                        {pickups.map((p) => (
+                          <Pickup key={p.id} {...p} />
+                        ))}
+
+                        {enemies.map((e) => (
+                          <Enemy key={e.id} {...e} />
+                        ))}
+
+                        {projectiles.map((p) => (
+                          <div
+                            key={p.id}
+                            style={{
+                              position: 'absolute',
+                              left: p.x - 4,
+                              top: p.y - 4,
+                              width: 8,
+                              height: 8,
+                              background: p.fromWatchdog ? '#bff' : '#fff2a8',
+                              borderRadius: '50%',
+                              boxShadow: p.fromWatchdog ? '0 0 8px rgba(120,220,255,0.8)' : '0 0 6px rgba(255,210,90,0.7)',
+                              pointerEvents: 'none',
+                              zIndex: 35,
+                            }}
+                          />
+                        ))}
+
+                        <Trash x={580} y={420} clutter={clutter} setClutter={setClutter} setPlayer={setPlayer} />
+
+                        <PlayerCursor {...player} mousePos={mousePos} />
+                      </>
+                    )}
+                  </>
+                )}
             
             {/* Menu Bar */}
 	            <div style={{
@@ -1038,10 +1231,10 @@ export default function DesktopWars() {
                     background: player.upgrades.includes('ram') ? '#0a0' : '#08f',
                     color: '#fff', fontSize: 5,
                     border: '1px solid #fff'
-                  }}>
-                    {player.upgrades.includes('ram') ? '🧠' : '🌀'}
-                  </span>
-                )}
+	                  }}>
+	                    {player.upgrades.includes('ram') ? 'RAM' : 'FAN'}
+	                  </span>
+	                )}
                 {/* Overheat warning */}
                 {player.cpuHeat >= 90 && (
                   <span style={{
@@ -1049,10 +1242,10 @@ export default function DesktopWars() {
                     background: '#f00',
                     color: '#fff', fontSize: 5,
                     animation: 'blink 0.3s infinite'
-                  }}>
-                    🔥OVERHEAT!
-                  </span>
-                )}
+	                  }}>
+	                    OVERHEAT
+	                  </span>
+	                )}
                 {/* RAM warning */}
                 {player.ramPressure >= 60 && (
                   <span style={{
@@ -1060,10 +1253,10 @@ export default function DesktopWars() {
                     background: player.ramPressure >= 80 ? '#a00' : '#a50',
                     color: '#fff', fontSize: 5,
                     animation: player.ramPressure >= 80 ? 'blink 0.5s infinite' : 'none'
-                  }}>
-                    {player.ramPressure >= 80 ? '🐌SLOW!' : '📊RAM!'}
-                  </span>
-                )}
+	                  }}>
+	                    {player.ramPressure >= 80 ? 'SLOW' : 'RAM'}
+	                  </span>
+	                )}
                 {/* Clock showing time until next wave */}
                 <div style={{ 
                   fontFamily: 'monospace', fontSize: 8,
@@ -1091,27 +1284,17 @@ export default function DesktopWars() {
               <div style={{ position: 'absolute', inset: 0, top: MENUBAR_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Window title="Desktop Wars" width={380}>
 	                  <div style={{ textAlign: 'center' }}>
-	                    {/* Cursor Sprite */}
-	                    <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', animation: 'idleBob 2.8s ease-in-out infinite' }}>
-	                      <Sprite
-	                        src={SPRITES.cursor}
-	                        alt="Cursor"
-	                        width={48}
-                        height={48}
-                        style={{ width: 48, height: 48 }}
-                        fallback={
-                          <svg width="48" height="48" viewBox="0 0 28 28">
-                            <polygon
-                              points="14,3 4,20 14,15 24,20"
-                              fill="#fff"
-                              stroke="#111"
-                              strokeWidth="1.5"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        }
-                      />
-                    </div>
+		                    <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', animation: 'idleBob 2.8s ease-in-out infinite' }}>
+		                      <svg width="48" height="48" viewBox="0 0 28 28" aria-label="Cursor">
+		                        <polygon
+		                          points="14,3 4,20 14,15 24,20"
+		                          fill="#fff"
+		                          stroke="#111"
+		                          strokeWidth="1.5"
+		                          strokeLinejoin="round"
+		                        />
+		                      </svg>
+		                    </div>
                     <h1 style={{ fontSize: 14, marginBottom: 6 }}>SYSTEM INTEGRITY</h1>
                     <p style={{ fontSize: 6, color: '#666', marginBottom: 20 }}>Defend your desktop against malware!</p>
                     <div style={{ marginBottom: 20 }}>
@@ -1141,47 +1324,20 @@ export default function DesktopWars() {
             
             {(gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) && (
               <>
-                <SystemFolder x={320} y={280} hp={systemFolderHP} />
-                
-                {/* Trash can in corner */}
-                <Trash x={580} y={420} clutter={clutter} setClutter={setClutter} setPlayer={setPlayer} />
-                
-                {/* Clutter on desktop */}
-                {clutter.map(c => <Clutter key={c.id} {...c} />)}
-                
-                {/* Folder Walls */}
-                {folderWalls.filter(w => w.hp > 0).map(wall => <FolderWall key={wall.id} {...wall} />)}
-                
-                {/* Deployables */}
-                {deployables.map(d => <Deployable key={d.id} {...d} />)}
-                
-                {/* EMP Explosion */}
-                {empExplosion && <EMPExplosion x={empExplosion.x} y={empExplosion.y} />}
-                
-                {/* Pickups */}
-                {pickups.map(p => <Pickup key={p.id} {...p} />)}
-                
-                {/* Enemies */}
-                {enemies.map(e => <Enemy key={e.id} {...e} />)}
-                
-                {/* Projectiles */}
-                {projectiles.map(p => (
-                  <div key={p.id} style={{
-                    position: 'absolute',
-                    left: p.x - 4, top: p.y - 4,
-                    width: 8, height: 8,
-                    background: 'radial-gradient(circle, #ff8 0%, #aa4 100%)',
-                    borderRadius: '50%',
-                    boxShadow: '0 0 6px #ff8',
-                    pointerEvents: 'none'
-                  }} />
+                {useWebGL && (
+                  <>
+                    <SystemFolder x={320} y={280} hp={systemFolderHP} showIcon={false} />
+
+                    {/* Trash: DOM hitbox + badge only (icon is 3D) */}
+                    <Trash x={580} y={420} clutter={clutter} setClutter={setClutter} setPlayer={setPlayer} showIcon={false} />
+
+                    <AimOverlay {...player} mousePos={mousePos} />
+                  </>
+                )}
+
+                {popups.map((popup) => (
+                  <PopupWindow key={popup.id} popup={popup} onChoice={handlePopupChoice} />
                 ))}
-                
-                {/* Player */}
-                <PlayerCursor {...player} mousePos={mousePos} />
-                
-                {/* Popups */}
-                {popups.map(popup => <PopupWindow key={popup.id} popup={popup} onChoice={handlePopupChoice} />)}
                 
                 {gameState === GAME_STATES.PAUSED && (
                   <div style={{
@@ -1215,84 +1371,121 @@ export default function DesktopWars() {
                       transition: 'transform 0.1s',
                     }}
                     onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                    >
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>🧠</div>
-                      <div style={{ fontSize: 8, fontWeight: 'bold', color: '#080' }}>RAM Upgrade</div>
-                      <div style={{ fontSize: 6, color: '#888', marginTop: 4 }}>50% less slowdown from clutter</div>
-                    </div>
+	                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+	                    >
+	                      <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+	                        <svg width="40" height="40" viewBox="0 0 64 64" aria-label="RAM Upgrade">
+	                          <rect x="14" y="18" width="36" height="28" rx="6" fill="#2a2f3c" stroke="#0a0" strokeWidth="4" />
+	                          <rect x="20" y="24" width="24" height="6" rx="3" fill="#0a0" opacity="0.7" />
+	                          <rect x="20" y="34" width="18" height="6" rx="3" fill="#0a0" opacity="0.55" />
+	                          <g fill="#0a0" opacity="0.9">
+	                            <rect x="10" y="22" width="4" height="6" rx="2" />
+	                            <rect x="10" y="32" width="4" height="6" rx="2" />
+	                            <rect x="50" y="22" width="4" height="6" rx="2" />
+	                            <rect x="50" y="32" width="4" height="6" rx="2" />
+	                          </g>
+	                        </svg>
+	                      </div>
+	                      <div style={{ fontSize: 8, fontWeight: 'bold', color: '#080' }}>RAM Upgrade</div>
+	                      <div style={{ fontSize: 6, color: '#888', marginTop: 4 }}>50% less slowdown from clutter</div>
+	                    </div>
                     <div onClick={() => continueFromIntermission('fan')} style={{
                       width: 120, padding: 14, background: '#fff', border: '3px solid #08f',
                       borderRadius: 8, cursor: 'pointer', textAlign: 'center',
                       transition: 'transform 0.1s',
                     }}
                     onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                    >
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>🌀</div>
-                      <div style={{ fontSize: 8, fontWeight: 'bold', color: '#06c' }}>Cooling Fan</div>
-                      <div style={{ fontSize: 6, color: '#888', marginTop: 4 }}>50% less CPU heat buildup</div>
-                    </div>
+	                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+	                    >
+	                      <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+	                        <svg width="40" height="40" viewBox="0 0 64 64" aria-label="Cooling Fan">
+	                          <circle cx="32" cy="32" r="22" fill="#2a2f3c" stroke="#08f" strokeWidth="4" />
+	                          <circle cx="32" cy="32" r="5" fill="#08f" />
+	                          <path d="M32 10 C38 12, 42 18, 40 24 C38 29, 34 28, 32 26 Z" fill="#08f" opacity="0.75" />
+	                          <path d="M54 32 C52 38, 46 42, 40 40 C35 38, 36 34, 38 32 Z" fill="#08f" opacity="0.75" />
+	                          <path d="M32 54 C26 52, 22 46, 24 40 C26 35, 30 36, 32 38 Z" fill="#08f" opacity="0.75" />
+	                          <path d="M10 32 C12 26, 18 22, 24 24 C29 26, 28 30, 26 32 Z" fill="#08f" opacity="0.75" />
+	                        </svg>
+	                      </div>
+	                      <div style={{ fontSize: 8, fontWeight: 'bold', color: '#06c' }}>Cooling Fan</div>
+	                      <div style={{ fontSize: 6, color: '#888', marginTop: 4 }}>50% less CPU heat buildup</div>
+	                    </div>
                   </div>
                 </Window>
               </div>
             )}
             
-            {gameState === GAME_STATES.GAMEOVER && (
-              <div style={{
-                position: 'absolute', inset: 0, top: MENUBAR_HEIGHT, background: 'rgba(80,0,0,0.85)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300
-              }}>
-                <Window title="⚠️ GAME OVER" width={300}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 36, marginBottom: 10 }}>💀</div>
-                    <h2 style={{ fontSize: 12, color: '#d44', marginBottom: 10 }}>SYSTEM FAILURE</h2>
-                    <div style={{ background: '#222', color: '#0f0', padding: 12, borderRadius: 4, marginBottom: 20 }}>
-                      <div>SCORE: {score}</div>
-                    </div>
-                    <Button variant="primary" onClick={startGame}>RESTART</Button>
+	            {gameState === GAME_STATES.GAMEOVER && (
+	              <div style={{
+	                position: 'absolute', inset: 0, top: MENUBAR_HEIGHT, background: 'rgba(80,0,0,0.85)',
+	                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300
+	              }}>
+	                <Window title="GAME OVER" width={300}>
+	                  <div style={{ textAlign: 'center' }}>
+	                    <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
+	                      <svg width="42" height="42" viewBox="0 0 64 64" aria-label="Game Over">
+	                        <path d="M32 6 L60 56 H4 Z" fill="#d44" stroke="#2a2a2a" strokeWidth="4" />
+	                        <rect x="29" y="22" width="6" height="18" rx="3" fill="#1a1a1a" />
+	                        <rect x="29" y="44" width="6" height="6" rx="3" fill="#1a1a1a" />
+	                      </svg>
+	                    </div>
+	                    <h2 style={{ fontSize: 12, color: '#d44', marginBottom: 10 }}>SYSTEM FAILURE</h2>
+	                    <div style={{ background: '#222', color: '#0f0', padding: 12, borderRadius: 4, marginBottom: 20 }}>
+	                      <div>SCORE: {score}</div>
+	                    </div>
+	                    <Button variant="primary" onClick={startGame}>RESTART</Button>
                   </div>
                 </Window>
               </div>
             )}
             
-            {gameState === GAME_STATES.WIN && (
-              <div style={{
-                position: 'absolute', inset: 0, top: MENUBAR_HEIGHT, background: 'rgba(0,80,0,0.7)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300
-              }}>
-                <Window title="YOU WIN!" width={300}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 36, marginBottom: 10 }}>🏆</div>
-                    <div style={{ background: '#f8f8f8', padding: 14, borderRadius: 6, marginBottom: 16 }}>
-                      <div style={{ fontSize: 9 }}>Score: <span style={{ color: '#4a4', fontWeight: 'bold' }}>{score}</span></div>
-                    </div>
-                    <Button variant="primary" onClick={startGame}>Play Again</Button>
+	            {gameState === GAME_STATES.WIN && (
+	              <div style={{
+	                position: 'absolute', inset: 0, top: MENUBAR_HEIGHT, background: 'rgba(0,80,0,0.7)',
+	                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300
+	              }}>
+	                <Window title="YOU WIN!" width={300}>
+	                  <div style={{ textAlign: 'center' }}>
+	                    <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
+	                      <svg width="42" height="42" viewBox="0 0 64 64" aria-label="Victory">
+	                        <path
+	                          d="M32 6 L39 22 L56 24 L43 36 L47 54 L32 44 L17 54 L21 36 L8 24 L25 22 Z"
+	                          fill="#f2c94c"
+	                          stroke="#2a2a2a"
+	                          strokeWidth="4"
+	                          strokeLinejoin="round"
+	                        />
+	                      </svg>
+	                    </div>
+	                    <div style={{ background: '#f8f8f8', padding: 14, borderRadius: 6, marginBottom: 16 }}>
+	                      <div style={{ fontSize: 9 }}>Score: <span style={{ color: '#4a4', fontWeight: 'bold' }}>{score}</span></div>
+	                    </div>
+	                    <Button variant="primary" onClick={startGame}>Play Again</Button>
                   </div>
                 </Window>
               </div>
             )}
             
             {/* Help Overlay */}
-            {showHelp && (
-              <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500
-              }}>
-                <Window title="📖 Help" width={350}>
-                  <div style={{ fontSize: 7, lineHeight: 1.8 }}>
-                    <p><b>WASD</b> - Move cursor</p>
-                    <p><b>Mouse</b> - Aim crosshair</p>
-                    <p><b>Left Click</b> - Shoot</p>
-                    <p><b>Right Click</b> - EMP (stuns all)</p>
-                    <p><b>Shift</b> - Dash</p>
-                    <p style={{ color: '#4a4' }}><b>Q</b> - Safe popup choice</p>
-                    <p style={{ color: '#a44' }}><b>E</b> - Risky popup choice</p>
-                    <div style={{ marginTop: 10, borderTop: '1px solid #ccc', paddingTop: 10 }}>
-                      <p><b>Power-ups:</b></p>
-                      <p>⚡ Rapid Fire | ✦ Triple Shot | 🛡️ Giant Mode</p>
-                    </div>
-                  </div>
+	            {showHelp && (
+	              <div style={{
+	                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
+	                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500
+	              }}>
+	                <Window title="Help" width={350}>
+	                  <div style={{ fontSize: 7, lineHeight: 1.8 }}>
+	                    <p><b>WASD</b> - Move cursor</p>
+	                    <p><b>Mouse</b> - Aim crosshair</p>
+	                    <p><b>Left Click</b> - Shoot</p>
+	                    <p><b>Right Click</b> - EMP (stuns all)</p>
+	                    <p><b>Shift</b> - Dash</p>
+	                    <p style={{ color: '#4a4' }}><b>Q</b> - Safe popup choice</p>
+	                    <p style={{ color: '#a44' }}><b>E</b> - Risky popup choice</p>
+	                    <div style={{ marginTop: 10, borderTop: '1px solid #ccc', paddingTop: 10 }}>
+	                      <p><b>Power-ups:</b></p>
+	                      <p>Rapid Fire | Triple Shot | Giant Mode</p>
+	                    </div>
+	                  </div>
                   <div style={{ marginTop: 14, textAlign: 'center' }}>
                     <Button onClick={() => setShowHelp(false)}>Close (F1)</Button>
                   </div>
@@ -1309,217 +1502,114 @@ export default function DesktopWars() {
               </div>
             </div>
 
-            {/* Monitor bezel info */}
-            <div
-              style={{
-                position: 'absolute',
-                left: screenLeft + screenWidth + 52,
-                top: screenTop + 10,
-                width: Math.max(0, monitorWidth - (screenLeft + screenWidth) - 68),
-                height: screenHeight - 20,
-                padding: 12,
-                boxSizing: 'border-box',
-                color: '#fff',
-                fontSize: 7,
-                lineHeight: 1.8,
-                background: 'transparent',
-                border: 'none',
-                zIndex: 30,
-                overflow: 'hidden',
-                pointerEvents: 'none',
-                textShadow: '0 2px 10px rgba(0,0,0,0.9)',
-              }}
-            >
-              <div style={{ fontSize: 9, marginBottom: 10, color: '#8af' }}>CONTROLS</div>
-              <div style={{ marginBottom: 12 }}>
-                <div>WASD - Move</div>
-                <div>Mouse - Aim</div>
-                <div>Click - Shoot</div>
-                <div>Right - EMP</div>
-                <div>Shift - Dash</div>
-                <div>Q/E - Popups</div>
-                <div>Space - Pause</div>
-              </div>
+	            {/* Monitor bezel info */}
+	            <div
+	              style={{
+	                position: 'absolute',
+	                left: screenLeft + screenWidth + 52,
+	                top: screenTop + 10,
+	                width: Math.max(0, monitorWidth - (screenLeft + screenWidth) - 68),
+	                height: screenHeight - 20,
+	                padding: 12,
+	                boxSizing: 'border-box',
+	                color: '#fff',
+	                fontSize: 7,
+	                lineHeight: 1.8,
+	                background: 'transparent',
+	                border: 'none',
+	                zIndex: 30,
+	                overflow: 'hidden',
+	                pointerEvents: 'none',
+	                textShadow: '0 2px 10px rgba(0,0,0,0.9)',
+	              }}
+	            >
+	              <div style={{ fontSize: 9, marginBottom: 10, color: '#8af' }}>CONTROLS</div>
+	              <div style={{ marginBottom: 12 }}>
+	                <div>WASD / Arrows - Move</div>
+	                <div>Mouse - Aim</div>
+	                <div>Click - Shoot</div>
+	                <div>Right Click - EMP</div>
+	                <div>Shift - Dash</div>
+	                <div>Q/E - Popups</div>
+	                <div>Space - Pause</div>
+	                <div>F - Fullscreen</div>
+	              </div>
 
-              <div style={{ fontSize: 9, marginBottom: 8, color: '#fa0' }}>ENEMIES</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SpriteSheet
-                    src={SPRITES.enemyRegiMite}
-                    width={22}
-                    height={22}
-                    frameWidth={32}
-                    frameHeight={32}
-                    columns={4}
-                    rows={4}
-                    marginX={16}
-                    marginY={16}
-                    spacingX={32}
-                    spacingY={32}
-                    frameIndex={0}
-                    fallback={<span style={{ fontSize: 14 }}>📦</span>}
-                  />
-                  <span>Regi-Mite</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SpriteSheet
-                    src={SPRITES.enemyPopupGremlin}
-                    width={22}
-                    height={22}
-                    frameWidth={32}
-                    frameHeight={32}
-                    columns={4}
-                    rows={4}
-                    marginX={16}
-                    marginY={16}
-                    spacingX={32}
-                    spacingY={32}
-                    frameIndex={0}
-                    fallback={<span style={{ fontSize: 14 }}>🤪</span>}
-                  />
-                  <span>Gremlin</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SpriteSheet
-                    src={SPRITES.enemySpyDot}
-                    width={22}
-                    height={22}
-                    frameWidth={32}
-                    frameHeight={32}
-                    columns={4}
-                    rows={4}
-                    marginX={16}
-                    marginY={16}
-                    spacingX={32}
-                    spacingY={32}
-                    frameIndex={0}
-                    fallback={<span style={{ fontSize: 14 }}>🔴</span>}
-                  />
-                  <span>Spy-Dot</span>
-                </div>
-              </div>
+	              <div style={{ fontSize: 9, marginBottom: 8, color: '#fa0' }}>ENEMIES</div>
+	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#e9d9c6', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Regi-Mite</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#ff6b7a', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)', transform: 'rotate(20deg)' }} />
+	                  <span>Gremlin</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#ff3b3b', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Spy-Dot</span>
+	                </div>
+	              </div>
 
-              <div style={{ fontSize: 9, marginBottom: 8, color: '#5f5' }}>POWER-UPS</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.pickupApple}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>🍎</span>}
-                  />
-                  <span>Heal</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.pickupCoolant}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>❄️</span>}
-                  />
-                  <span>Coolant</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.powerupRapid}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>🔥</span>}
-                  />
-                  <span>Rapid</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.powerupTriple}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>🔱</span>}
-                  />
-                  <span>Triple</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.powerupGiant}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>🛡️</span>}
-                  />
-                  <span>Giant</span>
-                </div>
-              </div>
+	              <div style={{ fontSize: 9, marginBottom: 8, color: '#5f5' }}>POWER-UPS</div>
+	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#e04444', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Heal</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: 'rgba(103,214,255,0.85)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Coolant</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#ff9a3c', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Rapid</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#3c8bff', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Triple</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#f2c94c', borderRadius: 6, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Giant</span>
+	                </div>
+	              </div>
 
-              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>DEPLOYABLES</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.9 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SpriteSheet
-                    src={SPRITES.folderWall}
-                    width={14}
-                    height={14}
-                    frameWidth={32}
-                    frameHeight={32}
-                    columns={4}
-                    rows={1}
-                    marginX={16}
-                    marginY={16}
-                    spacingX={32}
-                    frameIndex={0}
-                    fallback={<span style={{ fontSize: 14 }}>📁</span>}
-                  />
-                  <span>Wall</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <SpriteSheet
-                    src={SPRITES.deployableWatchdog}
-                    width={28}
-                    height={28}
-                    frameWidth={44}
-                    frameHeight={44}
-                    columns={4}
-                    rows={2}
-                    marginX={10}
-                    marginY={10}
-                    spacingX={20}
-                    spacingY={20}
-                    frameIndex={7}
-                    fallback={<span style={{ fontSize: 14 }}>🐕</span>}
-                  />
-                  <span>Watchdog</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sprite
-                    src={SPRITES.deployableSticky}
-                    width={14}
-                    height={14}
-                    style={{ width: 14, height: 14 }}
-                    fallback={<span style={{ fontSize: 14 }}>📝</span>}
-                  />
-                  <span>Floppy Disk</span>
-                </div>
-              </div>
-            </div>
+	              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>DEPLOYABLES</div>
+	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.9 }}>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#d4a456', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Wall</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#f2c94c', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Watchdog</span>
+	                </div>
+	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+	                  <span style={{ width: 12, height: 12, background: '#f7f0a6', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
+	                  <span>Floppy Disk</span>
+	                </div>
+	              </div>
+	            </div>
 
-            {/* Monitor overlay (transparent hole) */}
-            <Sprite
-              src={SPRITES.crtMonitor}
-              alt="CRT Monitor"
-              width={CRT_MONITOR_LAYOUT.width}
-              height={CRT_MONITOR_LAYOUT.height}
-              pixelated={false}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                zIndex: 20,
-              }}
-            />
-          </div>
+	            {/* Monitor overlay (transparent hole) */}
+	            <Sprite
+	              src={SPRITES.crtMonitor}
+	              alt="CRT Monitor"
+	              width={CRT_MONITOR_LAYOUT.width}
+	              height={CRT_MONITOR_LAYOUT.height}
+	              pixelated={false}
+	              style={{
+	                position: 'absolute',
+	                inset: 0,
+	                width: '100%',
+	                height: '100%',
+	                pointerEvents: 'none',
+	                zIndex: 20,
+	              }}
+	            />
+	            </div>
+	          </div>
 
         </div>
       </div>{/* End of top flex row */}
@@ -1547,8 +1637,8 @@ export default function DesktopWars() {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 9, color: '#f55', marginBottom: 8 }}>RESOURCES</div>
           <div style={{ fontSize: 7, lineHeight: 2 }}>
-            <div><span style={{ fontSize: 12 }}>🔥</span> <span style={{ color: '#faa' }}>CPU</span> - Overheats when shooting → ❄️ helps</div>
-            <div><span style={{ fontSize: 12 }}>📊</span> <span style={{ color: '#ffa' }}>RAM</span> - Clutter slows you down → 🗑️ empty</div>
+            <div><span style={{ color: '#faa' }}>CPU</span> - Overheats when shooting; Coolant helps</div>
+            <div><span style={{ color: '#ffa' }}>RAM</span> - Clutter slows you down; empty Trash</div>
           </div>
         </div>
         
@@ -1556,10 +1646,10 @@ export default function DesktopWars() {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 9, color: '#f8f', marginBottom: 8 }}>DARK PATTERNS</div>
           <div style={{ fontSize: 7, lineHeight: 2 }}>
-            <div><span style={{ fontSize: 12 }}>🛡️</span> Firewall → <span style={{ color: '#5f5' }}>Deny</span> is correct</div>
-            <div><span style={{ fontSize: 12 }}>📦</span> Fake Update → <span style={{ color: '#5f5' }}>Later</span> is correct</div>
-            <div><span style={{ fontSize: 12 }}>🔒</span> Security → <span style={{ color: '#5f5' }}>Install</span> is correct</div>
-            <div style={{ color: '#fa0', marginTop: 4 }}>⚠️ Q/E buttons get swapped!</div>
+            <div>Firewall - <span style={{ color: '#5f5' }}>Deny</span> is correct</div>
+            <div>Fake Update - <span style={{ color: '#5f5' }}>Later</span> is correct</div>
+            <div>Security Patch - <span style={{ color: '#5f5' }}>Install</span> is correct</div>
+            <div style={{ color: '#fa0', marginTop: 4 }}>Warning: Q/E buttons can swap.</div>
           </div>
         </div>
       </div>
