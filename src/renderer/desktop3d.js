@@ -66,6 +66,59 @@ function makeBackgroundTexture() {
   return t;
 }
 
+function makeRadialAlphaTexture(size = 128) {
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+
+  const r0 = size * 0.08;
+  const r1 = size * 0.5;
+  const g = ctx.createRadialGradient(size / 2, size / 2, r0, size / 2, size / 2, r1);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.ClampToEdgeWrapping;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.anisotropy = 1;
+  return t;
+}
+
+function makeTrailAlphaTexture(w = 64, h = 8) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+
+  const g = ctx.createLinearGradient(0, 0, w, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.15, 'rgba(255,255,255,0.9)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  // Slight falloff towards the edges (vertical).
+  ctx.globalCompositeOperation = 'destination-in';
+  const v = ctx.createLinearGradient(0, 0, 0, h);
+  v.addColorStop(0, 'rgba(255,255,255,0)');
+  v.addColorStop(0.5, 'rgba(255,255,255,1)');
+  v.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, w, h);
+
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.ClampToEdgeWrapping;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.anisotropy = 1;
+  return t;
+}
+
 function makeRoundedRectShape(w, h, r) {
   const hw = w / 2;
   const hh = h / 2;
@@ -210,6 +263,8 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
   // Keep automation rendering as simple as possible for SwiftShader reliability.
   const bgTex = automationMode ? null : makeBackgroundTexture();
+  const glowAlphaTex = makeRadialAlphaTexture(128);
+  const trailAlphaTex = makeTrailAlphaTexture(64, 8);
   const floorGeo = new THREE.PlaneGeometry(width, height);
 
   // Background plane (unlit) + shadow plane on top for crisp, readable silhouettes.
@@ -252,24 +307,41 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const wallGeo = makeRoundedExtrudeGeometry(24, 24, 10, 4);
   const folderBodyGeo = makeRoundedExtrudeGeometry(48, 32, 12, 6);
   const folderTabGeo = makeRoundedExtrudeGeometry(40, 18, 10, 6);
+  const folderSlotGeo = makeRoundedExtrudeGeometry(34, 18, 2, 6);
   const lockGeo = new THREE.BoxGeometry(12, 10, 3);
 
   const projectileGeo = new THREE.SphereGeometry(4, 12, 12);
+  const glowGeo = new THREE.PlaneGeometry(1, 1);
+  const trailGeo = new THREE.PlaneGeometry(26, 6);
+  // Trail extends behind the projectile in +x direction (after rotation).
+  trailGeo.translate(-13, 0, 0);
   const clutterGeo = new THREE.PlaneGeometry(16, 12);
-  const coolantGeo = new THREE.BoxGeometry(14, 14, 14);
+  const coolantGeo = makeRoundedExtrudeGeometry(14, 14, 14, 3);
+  const coolantCoreGeo = new THREE.BoxGeometry(8, 8, 8);
   const appleGeo = new THREE.SphereGeometry(8, 16, 16);
   const appleLeafGeo = new THREE.BoxGeometry(4, 2, 2);
+  const appleStemGeo = new THREE.CylinderGeometry(1.2, 1.6, 6, 10);
+  const appleHighlightGeo = new THREE.SphereGeometry(3.2, 12, 12);
   const powerCapsuleGeo = new THREE.CapsuleGeometry(5, 10, 6, 12);
   const powerPrismGeo = makeRoundedExtrudeGeometry(14, 10, 6, 2);
   const powerShieldGeo = makeRoundedExtrudeGeometry(16, 18, 6, 6);
 
   const trashBodyGeo = new THREE.CylinderGeometry(12, 10, 22, 18, 1, false);
   const trashLidGeo = new THREE.CylinderGeometry(13, 13, 4, 18, 1, false);
+  const trashRidgeGeo = new THREE.BoxGeometry(1.4, 18, 14);
+  const trashHandleGeo = new THREE.TorusGeometry(7, 1.1, 10, 22);
 
   const regiBodyGeo = makeRoundedExtrudeGeometry(42, 28, 12, 6);
   const eyeGeo = new THREE.SphereGeometry(2.3, 10, 10);
+  const eyeWhiteGeo = new THREE.SphereGeometry(3.3, 12, 12);
+  const eyePupilGeo = new THREE.SphereGeometry(1.45, 10, 10);
+  const regiLegGeo = new THREE.BoxGeometry(2.2, 2.2, 9);
   const gremlinGeo = new THREE.IcosahedronGeometry(14, 0);
+  const gremlinCoreGeo = new THREE.SphereGeometry(7, 16, 16);
+  const gremlinSpikeGeo = new THREE.TetrahedronGeometry(5, 0);
   const spyGeo = new THREE.SphereGeometry(10, 18, 18);
+  const spyShellGeo = new THREE.SphereGeometry(11.3, 20, 20);
+  const spyRingGeo = new THREE.TorusGeometry(12, 1.2, 10, 26);
   const spyPupilGeo = new THREE.SphereGeometry(3.2, 12, 12);
 
   const watchdogBaseGeo = new THREE.CylinderGeometry(10, 12, 10, 16);
@@ -303,6 +375,13 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.55,
     metalness: 0.1,
   });
+  const folderSlotMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#0b1020'),
+    roughness: 0.9,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.85,
+  });
   const lockMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#f2c94c'),
     roughness: 0.35,
@@ -310,12 +389,112 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     emissive: pickColorHex('#6a4b00'),
     emissiveIntensity: 0.18,
   });
+
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color: 0x0b1020,
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: automationMode ? 0.62 : 0.42,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  outlineMat.userData.fixedOpacity = true;
+
+  const glowYellowMat = new THREE.MeshBasicMaterial({
+    color: 0xffd35a,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.62 : 0.42,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowYellowMat.userData.fixedOpacity = true;
+  const glowCyanMat = new THREE.MeshBasicMaterial({
+    color: 0x67d6ff,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.62 : 0.42,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowCyanMat.userData.fixedOpacity = true;
+  const glowOrangeMat = new THREE.MeshBasicMaterial({
+    color: 0xff9a3c,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.62 : 0.42,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowOrangeMat.userData.fixedOpacity = true;
+  const glowBlueMat = new THREE.MeshBasicMaterial({
+    color: 0x3c8bff,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.6 : 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowBlueMat.userData.fixedOpacity = true;
+  const glowPinkMat = new THREE.MeshBasicMaterial({
+    color: 0xff4da6,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.6 : 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowPinkMat.userData.fixedOpacity = true;
+  const glowRedMat = new THREE.MeshBasicMaterial({
+    color: 0xff3b3b,
+    alphaMap: glowAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.55 : 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  glowRedMat.userData.fixedOpacity = true;
+
+  const trailYellowMat = new THREE.MeshBasicMaterial({
+    color: 0xffd35a,
+    alphaMap: trailAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.9 : 0.7,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  trailYellowMat.userData.fixedOpacity = true;
+  const trailCyanMat = new THREE.MeshBasicMaterial({
+    color: 0x67d6ff,
+    alphaMap: trailAlphaTex || null,
+    transparent: true,
+    opacity: automationMode ? 0.9 : 0.7,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  trailCyanMat.userData.fixedOpacity = true;
+
   const projectileMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#fff2a8'),
     roughness: 0.25,
     metalness: 0.05,
     emissive: pickColorHex('#ffd35a'),
     emissiveIntensity: 0.55,
+  });
+  const projectileWatchdogMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#c7f3ff'),
+    roughness: 0.18,
+    metalness: 0.05,
+    emissive: pickColorHex('#47c9ff'),
+    emissiveIntensity: 0.75,
   });
   const clutterMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#e9eef8'),
@@ -327,6 +506,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     color: pickColorHex('#e04444'),
     roughness: 0.4,
     metalness: 0.05,
+  });
+  const appleStemMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#7a4b2c'),
+    roughness: 0.75,
+    metalness: 0.0,
+  });
+  const appleHighlightMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#ffd6d6'),
+    roughness: 0.12,
+    metalness: 0.0,
+    emissive: pickColorHex('#ffffff'),
+    emissiveIntensity: 0.08,
+    transparent: true,
+    opacity: 0.8,
   });
   const leafMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#4bbf5a'),
@@ -342,6 +535,14 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     ior: 1.25,
     clearcoat: 0.4,
     clearcoatRoughness: 0.1,
+  });
+  coolantMat.userData.fixedOpacity = true;
+  const coolantCoreMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#0b6aa6'),
+    roughness: 0.25,
+    metalness: 0.0,
+    emissive: pickColorHex('#2bbcff'),
+    emissiveIntensity: 0.85,
   });
   const powerRapidMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#ff9a3c'),
@@ -375,18 +576,62 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.55,
     metalness: 0.08,
   });
+  const trashDarkMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#7d8698'),
+    roughness: 0.75,
+    metalness: 0.04,
+  });
 
   const regiMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#e9d9c6'),
     roughness: 0.75,
     metalness: 0.0,
   });
-  const gremlinMat = new THREE.MeshStandardMaterial({
-    color: pickColorHex('#ff6b7a'),
-    roughness: 0.35,
+  const regiShellMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#d7c2aa'),
+    roughness: 0.42,
     metalness: 0.05,
+  });
+  const regiLegMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#6a4b00'),
+    roughness: 0.85,
+    metalness: 0.0,
+  });
+  const eyeWhiteMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#f4f4f4'),
+    roughness: 0.25,
+    metalness: 0.0,
+  });
+  const pupilMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#0f0f12'),
+    roughness: 0.85,
+    metalness: 0.0,
+  });
+
+  const gremlinMat = new THREE.MeshPhysicalMaterial({
+    color: pickColorHex('#ff6b7a'),
+    roughness: 0.22,
+    metalness: 0.12,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.08,
     emissive: pickColorHex('#b4002f'),
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.6,
+    flatShading: true,
+  });
+  const gremlinCoreMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#ff4da6'),
+    roughness: 0.18,
+    metalness: 0.0,
+    emissive: pickColorHex('#ff1f7a'),
+    emissiveIntensity: 0.85,
+  });
+  const gremlinSpikeMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#2a0010'),
+    roughness: 0.55,
+    metalness: 0.1,
+    emissive: pickColorHex('#350013'),
+    emissiveIntensity: 0.35,
+    flatShading: true,
   });
   const spyMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#ff3b3b'),
@@ -394,6 +639,26 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     metalness: 0.25,
     emissive: pickColorHex('#550000'),
     emissiveIntensity: 0.25,
+  });
+  const spyShellMat = new THREE.MeshPhysicalMaterial({
+    color: pickColorHex('#ffffff'),
+    roughness: 0.06,
+    metalness: 0.0,
+    transmission: 0.9,
+    thickness: 1.6,
+    ior: 1.3,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.1,
+    transparent: true,
+    opacity: 0.9,
+  });
+  spyShellMat.userData.fixedOpacity = true;
+  const spyRingMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#ff3b3b'),
+    roughness: 0.25,
+    metalness: 0.15,
+    emissive: pickColorHex('#ff1f1f'),
+    emissiveIntensity: 0.65,
   });
   const spyPupilMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#2a0010'),
@@ -431,22 +696,72 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
   const wallBaseColor = pickColorHex('#d4a456');
 
+  const applyStatusToMaterial = (mesh, { stunned = 0, isHit = false }) => {
+    if (!mesh || !mesh.material || Array.isArray(mesh.material)) return;
+    const mat = mesh.material;
+    if (mat.userData && mat.userData.fixedOpacity) return;
+    if ('opacity' in mat) {
+      mat.transparent = true;
+      mat.opacity = stunned > 0 ? 0.65 : 1.0;
+    }
+    if ('emissive' in mat) {
+      const base = Number.isFinite(mesh.userData.baseEmissiveIntensity) ? mesh.userData.baseEmissiveIntensity : mat.emissiveIntensity || 0;
+      mat.emissiveIntensity = base + (isHit ? 0.35 : 0.0);
+    }
+  };
+
+  const addBackfaceOutline = (mesh, scale = 1.12) => {
+    const o = new THREE.Mesh(mesh.geometry, outlineMat);
+    o.scale.set(scale, scale, scale);
+    o.castShadow = false;
+    o.receiveShadow = false;
+    o.renderOrder = -1;
+    mesh.add(o);
+    return o;
+  };
+
+  const addGlowPlane = (parent, mat, size, z = -2) => {
+    const g = new THREE.Mesh(glowGeo, mat);
+    g.position.set(0, 0, z);
+    g.scale.set(size, size, 1);
+    g.castShadow = false;
+    g.receiveShadow = false;
+    g.renderOrder = -2;
+    parent.add(g);
+    return g;
+  };
+
   // Static meshes.
   const cursor = new THREE.Mesh(cursorGeo, cursorMat);
   cursor.castShadow = !automationMode;
   cursor.receiveShadow = false;
   scene.add(cursor);
+  addBackfaceOutline(cursor, 1.16);
 
   const systemFolder = new THREE.Group();
   const folderTab = new THREE.Mesh(folderTabGeo, folderTabMat);
   folderTab.castShadow = !automationMode;
   folderTab.position.set(0, -10, 6);
+  addBackfaceOutline(folderTab, 1.08);
   const folderBody = new THREE.Mesh(folderBodyGeo, folderMat);
   folderBody.castShadow = !automationMode;
   folderBody.position.set(0, 0, 8);
+  addBackfaceOutline(folderBody, 1.08);
   const folderLock = new THREE.Mesh(lockGeo, lockMat);
   folderLock.castShadow = !automationMode;
   folderLock.position.set(0, 6, 14);
+  addBackfaceOutline(folderLock, 1.12);
+  const folderSlot = new THREE.Mesh(folderSlotGeo, folderSlotMat);
+  folderSlot.castShadow = false;
+  folderSlot.position.set(0, 5, 14.2);
+  systemFolder.add(folderSlot);
+  addBackfaceOutline(folderSlot, 1.06);
+  const folderHandle = new THREE.Mesh(trashHandleGeo, lockMat);
+  folderHandle.castShadow = !automationMode;
+  folderHandle.rotation.x = Math.PI / 2;
+  folderHandle.position.set(0, 12, 15.2);
+  systemFolder.add(folderHandle);
+  addBackfaceOutline(folderHandle, 1.06);
   systemFolder.add(folderTab);
   systemFolder.add(folderBody);
   systemFolder.add(folderLock);
@@ -473,20 +788,43 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     cursorMat,
     folderMat,
     folderTabMat,
+    folderSlotMat,
     lockMat,
+    outlineMat,
+    glowYellowMat,
+    glowCyanMat,
+    glowOrangeMat,
+    glowBlueMat,
+    glowPinkMat,
+    glowRedMat,
+    trailYellowMat,
+    trailCyanMat,
     projectileMat,
+    projectileWatchdogMat,
     clutterMat,
     appleMat,
+    appleStemMat,
+    appleHighlightMat,
     leafMat,
     coolantMat,
+    coolantCoreMat,
     powerRapidMat,
     powerTripleMat,
     powerGiantMat,
     trashMat,
     trashLidMat,
+    trashDarkMat,
     regiMat,
+    regiShellMat,
+    regiLegMat,
+    eyeWhiteMat,
+    pupilMat,
     gremlinMat,
+    gremlinCoreMat,
+    gremlinSpikeMat,
     spyMat,
+    spyShellMat,
+    spyRingMat,
     spyPupilMat,
     eyeMat,
     watchdogBaseMat,
@@ -513,6 +851,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     m = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ color: wallBaseColor.clone(), roughness: 0.7, metalness: 0.0 }));
     m.castShadow = !automationMode;
     m.receiveShadow = false;
+    addBackfaceOutline(m, 1.08);
     scene.add(m);
     walls.set(id, m);
     return m;
@@ -525,9 +864,25 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     g = new THREE.Group();
     const body = new THREE.Mesh(trashBodyGeo, trashMat);
     body.castShadow = !automationMode;
+    addBackfaceOutline(body, 1.06);
     const lid = new THREE.Mesh(trashLidGeo, trashLidMat);
     lid.castShadow = !automationMode;
     lid.position.set(0, -11, 0);
+    addBackfaceOutline(lid, 1.06);
+
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i / 6) * Math.PI * 2;
+      const ridge = new THREE.Mesh(trashRidgeGeo, trashDarkMat);
+      ridge.castShadow = !automationMode;
+      ridge.position.set(Math.cos(a) * 10.5, 0, Math.sin(a) * 10.5);
+      ridge.rotation.y = a;
+      g.add(ridge);
+    }
+    const handle = new THREE.Mesh(trashHandleGeo, trashDarkMat);
+    handle.castShadow = !automationMode;
+    handle.position.set(0, -13.5, 7.5);
+    g.add(handle);
+
     g.add(body);
     g.add(lid);
     scene.add(g);
@@ -541,13 +896,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     g = new THREE.Group();
     const base = new THREE.Mesh(watchdogBaseGeo, watchdogBaseMat);
     base.castShadow = !automationMode;
+    addBackfaceOutline(base, 1.08);
     const head = new THREE.Mesh(watchdogHeadGeo, watchdogHeadMat);
     head.castShadow = !automationMode;
     head.position.set(0, 0, 8);
+    addBackfaceOutline(head, 1.08);
     const barrel = new THREE.Mesh(watchdogBarrelGeo, watchdogBarrelMat);
     barrel.castShadow = !automationMode;
     barrel.rotation.z = Math.PI / 2;
     barrel.position.set(9, 0, 10);
+    addBackfaceOutline(barrel, 1.08);
+    const muzzleGlow = addGlowPlane(g, glowCyanMat, 18, -4);
+    muzzleGlow.position.set(16, 0, 10);
+    muzzleGlow.visible = false;
+    g.userData.muzzleGlow = muzzleGlow;
     g.add(base);
     g.add(head);
     g.add(barrel);
@@ -577,29 +939,131 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     g.userData.type = type;
 
     if (type === 'regi-mite') {
-      const body = new THREE.Mesh(regiBodyGeo, regiMat.clone());
+      const bodyMat = regiMat.clone();
+      bodyMat.roughness = 0.68;
+      const body = new THREE.Mesh(regiBodyGeo, bodyMat);
       body.userData.baseEmissiveIntensity = 0.0;
       body.castShadow = !automationMode;
-      const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-      eyeL.castShadow = !automationMode;
-      eyeL.position.set(-6, -2, 9);
-      const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-      eyeR.castShadow = !automationMode;
-      eyeR.position.set(6, -2, 9);
-      g.add(body, eyeL, eyeR);
+      addBackfaceOutline(body, 1.1);
+      g.userData.body = body;
+
+      const shellMat = regiShellMat.clone();
+      shellMat.roughness = 0.38;
+      const shell = new THREE.Mesh(regiBodyGeo, shellMat);
+      shell.userData.baseEmissiveIntensity = 0.0;
+      shell.castShadow = !automationMode;
+      shell.position.set(0, -2, 2);
+      shell.scale.set(0.92, 0.86, 0.82);
+      addBackfaceOutline(shell, 1.1);
+      g.userData.shell = shell;
+
+      const mkEye = (x) => {
+        const eye = new THREE.Group();
+        const white = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat.clone());
+        white.castShadow = !automationMode;
+        const pupil = new THREE.Mesh(eyePupilGeo, pupilMat.clone());
+        pupil.castShadow = !automationMode;
+        pupil.position.set(0, 0, 2.2);
+        eye.add(white, pupil);
+        eye.position.set(x, -4, 9.5);
+        return { eye, pupil };
+      };
+      const left = mkEye(-7);
+      const right = mkEye(7);
+
+      const legs = [];
+      const legMat = regiLegMat.clone();
+      const legOffsets = [
+        [-14, 8],
+        [-6, 10],
+        [6, 10],
+        [14, 8],
+      ];
+      for (let i = 0; i < legOffsets.length; i += 1) {
+        const [lx, ly] = legOffsets[i];
+        const leg = new THREE.Mesh(regiLegGeo, legMat);
+        leg.castShadow = !automationMode;
+        leg.position.set(lx, ly, -11);
+        legs.push(leg);
+        g.add(leg);
+      }
+
+      g.userData.pupils = [left.pupil, right.pupil];
+      g.userData.legs = legs;
+
+      // Soft underglow helps silhouettes read on dark backgrounds.
+      addGlowPlane(g, glowYellowMat, 42, -14);
+
+      g.add(body, shell, left.eye, right.eye);
     } else if (type === 'popup-gremlin') {
       const body = new THREE.Mesh(gremlinGeo, gremlinMat.clone());
-      body.userData.baseEmissiveIntensity = 0.55;
+      body.userData.baseEmissiveIntensity = 0.6;
       body.castShadow = !automationMode;
-      g.add(body);
+      addBackfaceOutline(body, 1.14);
+      g.userData.body = body;
+
+      const core = new THREE.Mesh(gremlinCoreGeo, gremlinCoreMat.clone());
+      core.userData.baseEmissiveIntensity = 0.85;
+      core.castShadow = false;
+      core.position.set(0, 0, 1.5);
+
+      const spikeMat = gremlinSpikeMat.clone();
+      const spikes = [];
+      const dirs = [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+      ];
+      for (let i = 0; i < dirs.length; i += 1) {
+        const [dx, dy, dz] = dirs[i];
+        const sp = new THREE.Mesh(gremlinSpikeGeo, spikeMat);
+        sp.userData.baseEmissiveIntensity = 0.35;
+        sp.castShadow = !automationMode;
+        sp.scale.set(0.55, 0.55, 0.55);
+        sp.position.set(dx * 15.5, dy * 15.5, dz * 8);
+        sp.rotation.set(i * 0.4, i * 0.25, i * 0.3);
+        spikes.push(sp);
+        g.add(sp);
+      }
+
+      g.userData.core = core;
+      g.userData.spikes = spikes;
+
+      addGlowPlane(g, glowPinkMat, 54, -16);
+
+      g.add(body, core);
     } else if (type === 'spy-dot') {
       const body = new THREE.Mesh(spyGeo, spyMat.clone());
       body.userData.baseEmissiveIntensity = 0.25;
       body.castShadow = !automationMode;
-      const pupil = new THREE.Mesh(spyPupilGeo, spyPupilMat);
-      pupil.castShadow = !automationMode;
-      pupil.position.set(0, 0, 10);
-      g.add(body, pupil);
+      addBackfaceOutline(body, 1.12);
+      g.userData.body = body;
+
+      const shell = new THREE.Mesh(spyShellGeo, spyShellMat.clone());
+      shell.userData.baseEmissiveIntensity = 0.0;
+      shell.castShadow = false;
+      if (shell.material) shell.material.depthWrite = false;
+      g.userData.shell = shell;
+
+      const ring = new THREE.Mesh(spyRingGeo, spyRingMat.clone());
+      ring.userData.baseEmissiveIntensity = 0.65;
+      ring.castShadow = false;
+      ring.rotation.x = 0.55;
+      ring.position.set(0, 0, 3);
+
+      const pupil = new THREE.Mesh(spyPupilGeo, spyPupilMat.clone());
+      pupil.castShadow = false;
+      pupil.position.set(0, 0, 11);
+
+      g.userData.pupil = pupil;
+      g.userData.ring = ring;
+
+      addGlowPlane(g, glowRedMat, 46, -16);
+
+      g.add(body, shell, ring, pupil);
     }
 
     scene.add(g);
@@ -620,29 +1084,61 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     if (type === 'apple') {
       const body = new THREE.Mesh(appleGeo, appleMat);
       body.castShadow = !automationMode;
+      addBackfaceOutline(body, 1.12);
+
+      const highlight = new THREE.Mesh(appleHighlightGeo, appleHighlightMat);
+      highlight.castShadow = false;
+      highlight.position.set(-3.2, -4.2, 6.4);
+
+      const stem = new THREE.Mesh(appleStemGeo, appleStemMat);
+      stem.castShadow = !automationMode;
+      stem.rotation.x = Math.PI / 2;
+      stem.position.set(-0.5, -9.2, 7.2);
+
       const leaf = new THREE.Mesh(appleLeafGeo, leafMat);
       leaf.castShadow = !automationMode;
-      leaf.position.set(3, -8, 6);
-      g.add(body, leaf);
+      leaf.position.set(4.2, -9.2, 7.0);
+      leaf.rotation.z = -0.6;
+      leaf.rotation.y = 0.5;
+
+      addGlowPlane(g, glowRedMat, 34, -14);
+
+      g.add(body, highlight, stem, leaf);
     } else if (type === 'coolant') {
       const cube = new THREE.Mesh(coolantGeo, coolantMat);
       cube.castShadow = !automationMode;
-      g.add(cube);
+      addBackfaceOutline(cube, 1.06);
+
+      const core = new THREE.Mesh(coolantCoreGeo, coolantCoreMat);
+      core.castShadow = false;
+      core.position.set(0, 0, 0);
+
+      addGlowPlane(g, glowCyanMat, 42, -14);
+
+      g.add(cube, core);
     } else if (type === 'powerup-rapid') {
       const cap = new THREE.Mesh(powerCapsuleGeo, powerRapidMat);
       cap.castShadow = !automationMode;
+      addBackfaceOutline(cap, 1.06);
+      addGlowPlane(g, glowOrangeMat, 40, -14);
       g.add(cap);
     } else if (type === 'powerup-triple') {
       const prism = new THREE.Mesh(powerPrismGeo, powerTripleMat);
       prism.castShadow = !automationMode;
+      addBackfaceOutline(prism, 1.06);
+      addGlowPlane(g, glowBlueMat, 40, -14);
       g.add(prism);
     } else if (type === 'powerup-giant') {
       const shield = new THREE.Mesh(powerShieldGeo, powerGiantMat);
       shield.castShadow = !automationMode;
+      addBackfaceOutline(shield, 1.06);
+      addGlowPlane(g, glowYellowMat, 44, -14);
       g.add(shield);
     } else {
       const body = new THREE.Mesh(powerCapsuleGeo, powerRapidMat);
       body.castShadow = !automationMode;
+      addBackfaceOutline(body, 1.06);
+      addGlowPlane(g, glowYellowMat, 40, -14);
       g.add(body);
     }
 
@@ -656,6 +1152,18 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     if (m) return m;
     m = new THREE.Mesh(projectileGeo, projectileMat);
     m.castShadow = false;
+    addBackfaceOutline(m, 1.08);
+
+    const trail = new THREE.Mesh(trailGeo, trailYellowMat);
+    trail.position.set(0, 0, -2);
+    trail.castShadow = false;
+    trail.receiveShadow = false;
+    m.add(trail);
+    m.userData.trail = trail;
+
+    const glow = addGlowPlane(m, glowYellowMat, 20, -6);
+    m.userData.glow = glow;
+
     scene.add(m);
     projectiles.set(id, m);
     return m;
@@ -795,6 +1303,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         const dir = Number.isFinite(d.aimDir) ? d.aimDir : 7;
         const angle = Math.PI / 2 - dir * (Math.PI / 4);
         g.rotation.z = angle;
+
+        // Pulse a small muzzle glow to sell the turret.
+        const mg = g.userData.muzzleGlow || null;
+        if (mg) {
+          const pulse = 0.4 + 0.6 * Math.max(0, Math.sin((state.totalTime || 0) * 10 + id * 3));
+          mg.visible = true;
+          mg.material.opacity = (mg.material.userData && mg.material.userData.fixedOpacity) ? mg.material.opacity : mg.material.opacity;
+          mg.scale.set(1 + pulse * 0.25, 1 + pulse * 0.25, 1);
+        }
       } else if (d.type === 'sticky') {
         const m = ensureSticky(id);
         m.position.set(d.x + 12, d.y + 12, 2);
@@ -820,18 +1337,72 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         g.position.y += bounce;
         g.rotation.z = wobble;
         g.scale.setScalar(scale);
+
+        const body = g.userData.body || null;
+        if (body) {
+          body.rotation.x = Math.sin(f * 4.2) * 0.35;
+          body.rotation.y = Math.cos(f * 3.1) * 0.28;
+          body.rotation.z = Math.sin(f * 2.8) * 0.22;
+        }
+        const core = g.userData.core || null;
+        if (core) {
+          core.rotation.z = f * 2.2;
+          core.rotation.x = -Math.sin(f * 3.2) * 0.22;
+        }
+        const spikes = g.userData.spikes;
+        if (Array.isArray(spikes)) {
+          for (let i = 0; i < spikes.length; i += 1) {
+            const sp = spikes[i];
+            sp.rotation.x = f * 1.8 + i * 0.7;
+            sp.rotation.y = f * 1.4 + i * 0.5;
+            sp.rotation.z = f * 0.9 + i * 0.6;
+          }
+        }
       } else if (e.type === 'regi-mite') {
         const f = Number.isFinite(e.frame) ? e.frame : 0;
         const bob = Math.sin(f * 0.8) * 1.5;
         g.position.y += bob;
         g.rotation.z = 0;
         g.scale.setScalar(1);
+
+        const shell = g.userData.shell || null;
+        if (shell) shell.position.z = 2 + Math.sin(f * 1.7) * 0.7;
+
+        const legs = g.userData.legs;
+        if (Array.isArray(legs)) {
+          for (let i = 0; i < legs.length; i += 1) {
+            const leg = legs[i];
+            leg.rotation.x = Math.sin(f * 5.0 + i) * 0.45;
+            leg.rotation.y = Math.cos(f * 4.1 + i * 1.3) * 0.35;
+          }
+        }
+
+        const pupils = g.userData.pupils;
+        if (Array.isArray(pupils)) {
+          for (let i = 0; i < pupils.length; i += 1) {
+            const p = pupils[i];
+            p.position.x = Math.sin(f * 2.5 + i) * 0.65;
+            p.position.y = Math.cos(f * 2.1 + i) * 0.5;
+          }
+        }
       } else if (e.type === 'spy-dot') {
         g.rotation.z = 0;
         g.scale.setScalar(1);
-        const pupil = g.children?.find?.((c) => c.geometry === spyPupilGeo) || null;
-        const blink = Math.sin((state.totalTime || 0) * 9) > 0.7 ? 0.25 : 1;
-        if (pupil) pupil.scale.setScalar(blink);
+        const tt = state.totalTime || 0;
+        const pupil = g.userData.pupil || null;
+        const ring = g.userData.ring || null;
+        const shell = g.userData.shell || null;
+        const blink = Math.sin(tt * 9) > 0.7 ? 0.25 : 1;
+        if (pupil) {
+          pupil.scale.setScalar(blink);
+          pupil.position.x = Math.sin(tt * 2.6 + id) * 0.55;
+          pupil.position.y = Math.cos(tt * 2.1 + id) * 0.45;
+        }
+        if (ring) {
+          ring.rotation.z = tt * 1.7;
+          ring.rotation.y = Math.sin(tt * 3.0) * 0.35;
+        }
+        if (shell) shell.rotation.z = tt * 0.55;
       }
 
       // Hit / stunned feedback.
@@ -839,21 +1410,19 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       const isHit = !!e.isHit;
       g.traverse((child) => {
         if (!child.isMesh) return;
-        if (!child.material || Array.isArray(child.material)) return;
-        if ('opacity' in child.material) {
-          child.material.transparent = true;
-          child.material.opacity = stunned > 0 ? 0.65 : 1.0;
-        }
-        if ('emissive' in child.material) {
-          const base = Number.isFinite(child.userData.baseEmissiveIntensity) ? child.userData.baseEmissiveIntensity : child.material.emissiveIntensity || 0;
-          child.material.emissiveIntensity = base + (isHit ? 0.35 : 0.0);
-        }
+        applyStatusToMaterial(child, { stunned, isHit });
       });
 
       if (e.flipX) g.scale.x = -Math.abs(g.scale.x || 1);
       else g.scale.x = Math.abs(g.scale.x || 1);
     }
     cleanupMap(enemies, enemyIds);
+
+    // Optional polish: subtle idle motion for the objective and trash.
+    const tt = state.totalTime || 0;
+    systemFolder.position.y = 280 + Math.sin(tt * 1.2) * 1.6;
+    systemFolder.rotation.z = Math.sin(tt * 0.9) * 0.035;
+    trash.rotation.z = Math.sin(tt * 1.6) * 0.04;
 
     // Pickups.
     const pickupIds = new Set();
@@ -868,6 +1437,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       g.position.set(p.x, p.y + wobble, 6);
       g.rotation.z = isPower ? t * 0.6 : t * 0.35;
       g.scale.setScalar(pulse);
+
+      // Extra polish: subtle float/tilt and highlight wobble without affecting gameplay.
+      g.rotation.x = Math.sin(t * 1.7 + id) * 0.2;
+      g.rotation.y = Math.cos(t * 1.3 + id) * 0.18;
+      g.position.z = 6 + Math.sin(t * 2.2 + id) * 0.6;
     }
     cleanupMap(pickups, pickupIds);
 
@@ -878,6 +1452,24 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       projIds.add(id);
       const m = ensureProjectile(id);
       m.position.set(p.x, p.y, 10);
+
+      const vx = Number.isFinite(p.vx) ? p.vx : 0;
+      const vy = Number.isFinite(p.vy) ? p.vy : 0;
+      const speed = Math.hypot(vx, vy);
+      if (speed > 0.001) m.rotation.z = Math.atan2(vy, vx);
+
+      const isWatchdog = !!p.fromWatchdog;
+      m.material = isWatchdog ? projectileWatchdogMat : projectileMat;
+
+      const trail = m.userData.trail || null;
+      if (trail) {
+        trail.material = isWatchdog ? trailCyanMat : trailYellowMat;
+        trail.visible = speed > 0.15;
+        const len = Math.max(0.8, Math.min(2.2, speed / 5.8));
+        trail.scale.set(len, 1, 1);
+      }
+      const glow = m.userData.glow || null;
+      if (glow) glow.material = isWatchdog ? glowCyanMat : glowYellowMat;
     }
     cleanupMap(projectiles, projIds);
 
@@ -939,21 +1531,36 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     wallGeo.dispose();
     folderBodyGeo.dispose();
     folderTabGeo.dispose();
+    folderSlotGeo.dispose();
     lockGeo.dispose();
     projectileGeo.dispose();
+    glowGeo.dispose();
+    trailGeo.dispose();
     clutterGeo.dispose();
     coolantGeo.dispose();
+    coolantCoreGeo.dispose();
     appleGeo.dispose();
     appleLeafGeo.dispose();
+    appleStemGeo.dispose();
+    appleHighlightGeo.dispose();
     powerCapsuleGeo.dispose();
     powerPrismGeo.dispose();
     powerShieldGeo.dispose();
     trashBodyGeo.dispose();
     trashLidGeo.dispose();
+    trashRidgeGeo.dispose();
+    trashHandleGeo.dispose();
     regiBodyGeo.dispose();
     eyeGeo.dispose();
+    eyeWhiteGeo.dispose();
+    eyePupilGeo.dispose();
+    regiLegGeo.dispose();
     gremlinGeo.dispose();
+    gremlinCoreGeo.dispose();
+    gremlinSpikeGeo.dispose();
     spyGeo.dispose();
+    spyShellGeo.dispose();
+    spyRingGeo.dispose();
     spyPupilGeo.dispose();
     watchdogBaseGeo.dispose();
     watchdogHeadGeo.dispose();
@@ -966,20 +1573,43 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     cursorMat.dispose();
     folderMat.dispose();
     folderTabMat.dispose();
+    folderSlotMat.dispose();
     lockMat.dispose();
+    outlineMat.dispose();
+    glowYellowMat.dispose();
+    glowCyanMat.dispose();
+    glowOrangeMat.dispose();
+    glowBlueMat.dispose();
+    glowPinkMat.dispose();
+    glowRedMat.dispose();
+    trailYellowMat.dispose();
+    trailCyanMat.dispose();
     projectileMat.dispose();
+    projectileWatchdogMat.dispose();
     clutterMat.dispose();
     appleMat.dispose();
+    appleStemMat.dispose();
+    appleHighlightMat.dispose();
     leafMat.dispose();
     coolantMat.dispose();
+    coolantCoreMat.dispose();
     powerRapidMat.dispose();
     powerTripleMat.dispose();
     powerGiantMat.dispose();
     trashMat.dispose();
     trashLidMat.dispose();
+    trashDarkMat.dispose();
     regiMat.dispose();
+    regiShellMat.dispose();
+    regiLegMat.dispose();
+    eyeWhiteMat.dispose();
+    pupilMat.dispose();
     gremlinMat.dispose();
+    gremlinCoreMat.dispose();
+    gremlinSpikeMat.dispose();
     spyMat.dispose();
+    spyShellMat.dispose();
+    spyRingMat.dispose();
     spyPupilMat.dispose();
     eyeMat.dispose();
     watchdogBaseMat.dispose();
@@ -991,6 +1621,8 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     empRing.material.dispose();
 
     if (bgTex) bgTex.dispose?.();
+    if (glowAlphaTex) glowAlphaTex.dispose?.();
+    if (trailAlphaTex) trailAlphaTex.dispose?.();
 
     renderer.dispose();
   }
