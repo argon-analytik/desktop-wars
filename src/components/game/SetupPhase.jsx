@@ -1,47 +1,8 @@
 import { React, useState } from '../../lib/react.js';
 import { GRID_SIZE, MENUBAR_HEIGHT, SCREEN_HEIGHT, SCREEN_WIDTH } from '../../game/constants.js';
 import Button from '../ui/Button.jsx';
+import { FloppyDiskIcon, FolderWallIcon, TimerIcon, WatchdogIcon } from '../ui/GameIcons.jsx';
 import Window from '../ui/Window.jsx';
-
-function FolderIcon({ size }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <path d="M8 18h18l6 6h24v26H8z" fill="#d4a456" stroke="#6a4b00" strokeWidth="4" />
-      <path d="M8 18h20l4 4H8z" fill="#e8bc6a" opacity="0.8" />
-    </svg>
-  );
-}
-
-function WatchdogIcon({ size }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="18" fill="#f2c94c" stroke="#2a2f3c" strokeWidth="4" />
-      <rect x="28" y="10" width="8" height="18" rx="3" fill="#2a2f3c" />
-      <circle cx="32" cy="34" r="6" fill="#2a2f3c" />
-    </svg>
-  );
-}
-
-function DiskIcon({ size }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <rect x="14" y="12" width="36" height="40" rx="6" fill="#f7f0a6" stroke="#6b5b2d" strokeWidth="4" />
-      <rect x="22" y="18" width="20" height="10" rx="2" fill="#2a2f3c" opacity="0.35" />
-      <rect x="22" y="34" width="20" height="12" rx="2" fill="#fff" opacity="0.55" />
-    </svg>
-  );
-}
-
-function TimerIcon({ size }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <circle cx="32" cy="34" r="22" fill="#f8f8f8" stroke="#a33" strokeWidth="4" />
-      <rect x="26" y="6" width="12" height="10" rx="3" fill="#a33" />
-      <line x1="32" y1="34" x2="32" y2="20" stroke="#a33" strokeWidth="4" strokeLinecap="round" />
-      <line x1="32" y1="34" x2="44" y2="40" stroke="#a33" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 export default function SetupPhase({
   setupTimer,
@@ -60,24 +21,24 @@ export default function SetupPhase({
       type: 'folder',
       name: 'Folder Wall',
       count: 8 - folderWalls.length,
-      icon: <FolderIcon size={iconSize} />,
-	      desc: 'Blocks enemies',
-	    },
+      icon: <FolderWallIcon size={iconSize} />,
+		      desc: 'Blocks enemies',
+		    },
     {
       type: 'watchdog',
       name: 'Watchdog',
       count: 1 - deployables.filter((d) => d.type === 'watchdog').length,
       icon: <WatchdogIcon size={iconSize} />,
-	      desc: 'Auto-turret',
-	    },
+		      desc: 'Auto-turret',
+		    },
     {
       type: 'sticky',
       name: 'Floppy Disk',
       count: 2 - deployables.filter((d) => d.type === 'sticky').length,
-      icon: <DiskIcon size={iconSize} />,
-	      desc: 'Decoy target',
-	    },
-	  ];
+      icon: <FloppyDiskIcon size={iconSize} />,
+		      desc: 'Decoy target',
+		    },
+		  ];
 
   const handlePlace = (x, y) => {
     if (!selectedItem) return;

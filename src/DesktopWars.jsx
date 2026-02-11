@@ -3,6 +3,21 @@ import { ReactDOM } from './lib/reactDom.js';
 import { CRT_MONITOR_LAYOUT } from './assets/layout.js';
 import { SPRITES } from './assets/manifest.js';
 import Button from './components/ui/Button.jsx';
+import {
+  AppleIcon,
+  CoolantIcon,
+  CpuIcon,
+  FloppyDiskIcon,
+  FolderWallIcon,
+  GremlinIcon,
+  PowerGiantIcon,
+  PowerRapidIcon,
+  PowerTripleIcon,
+  RamIcon,
+  RegiMiteIcon,
+  SpyDotIcon,
+  WatchdogIcon,
+} from './components/ui/GameIcons.jsx';
 import Window from './components/ui/Window.jsx';
 import Sprite from './components/shared/Sprite.jsx';
 import AimOverlay from './components/game/AimOverlay.jsx';
@@ -71,6 +86,8 @@ export default function DesktopWars() {
   const spawnTimerRef = useRef(0);
   const popupTimerRef = useRef(10000);
   const setupAccumRef = useRef(0);
+  const aimRef = useRef({ x: 1, y: 0, angle: 0 });
+  const systemFolderDamageRef = useRef(0);
 
   const isWebdriver = typeof navigator !== 'undefined' && !!navigator.webdriver;
   const [useWebGL, setUseWebGL] = useState(() => {
@@ -356,13 +373,29 @@ export default function DesktopWars() {
     const mouseSnap = snap.mousePos || { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
     const playerSnap = snap.player;
     const enemiesSnap = snap.enemies;
-    const popupsSnap = snap.popups;
-    const folderWallsSnap = snap.folderWalls;
-    const deployablesSnap = snap.deployables;
-    const waveSnap = snap.wave;
-    const waveTimerSnap = snap.waveTimer;
-    const systemFolderHPSnap = snap.systemFolderHP;
-    const isShootingSnap = snap.isShooting;
+	    const popupsSnap = snap.popups;
+	    const folderWallsSnap = snap.folderWalls;
+	    const deployablesSnap = snap.deployables;
+	    const clutterSnap = snap.clutter || [];
+	    const waveSnap = snap.wave;
+	    const waveTimerSnap = snap.waveTimer;
+	    const systemFolderHPSnap = snap.systemFolderHP;
+	    const isShootingSnap = snap.isShooting;
+
+    // Stable aim direction so the cursor doesn't jitter when the mouse is near the player center.
+    const aimDx = mouseSnap.x - playerSnap.x;
+    const aimDy = mouseSnap.y - playerSnap.y;
+    const aimDistSq = aimDx * aimDx + aimDy * aimDy;
+    const AIM_DEADZONE_PX = 10;
+    if (aimDistSq > AIM_DEADZONE_PX * AIM_DEADZONE_PX) {
+      const len = Math.sqrt(aimDistSq) || 1;
+      aimRef.current.x = aimDx / len;
+      aimRef.current.y = aimDy / len;
+      aimRef.current.angle = Math.atan2(aimDy, aimDx);
+    }
+    const aimDirX = aimRef.current.x;
+    const aimDirY = aimRef.current.y;
+    const aimAngle = aimRef.current.angle;
 
     shootCooldownRef.current -= dt;
     const isOverheated = playerSnap.cpuHeat >= 90;
@@ -386,11 +419,8 @@ export default function DesktopWars() {
       if (keysSnap['d'] || keysSnap['arrowright']) newX += speed;
 
       if (keysSnap['shift'] && prev.dashEnergy > 20) {
-        const dx = mouseSnap.x - prev.x;
-        const dy = mouseSnap.y - prev.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        newX += (dx / len) * 10;
-        newY += (dy / len) * 10;
+        newX += aimDirX * 10;
+        newY += aimDirY * 10;
         isDashing = true;
         newDashEnergy -= 1.5;
       } else {
@@ -429,13 +459,10 @@ export default function DesktopWars() {
       playerSnap.powerUp !== 'giant' &&
       !isOverheated
     ) {
-      const dx = mouseSnap.x - playerSnap.x;
-      const dy = mouseSnap.y - playerSnap.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const dirX = dx / len;
-      const dirY = dy / len;
+      const dirX = aimDirX;
+      const dirY = aimDirY;
       const speed = 8;
-      const angle = Math.atan2(dy, dx);
+      const angle = aimAngle;
 
       const tipOffset = 14;
       const spawnX = playerSnap.x + dirX * tipOffset;
@@ -463,11 +490,20 @@ export default function DesktopWars() {
       setPlayer((prev) => ({ ...prev, cpuHeat: Math.min(100, prev.cpuHeat + heatIncrease) }));
     }
 
-    setProjectiles((prev) =>
-      prev
-        .map((p) => ({ ...p, x: p.x + p.vx, y: p.y + p.vy }))
-        .filter((p) => p.x > -10 && p.x < SCREEN_WIDTH + 10 && p.y > MENUBAR_HEIGHT && p.y < SCREEN_HEIGHT + 10)
-    );
+    setProjectiles((prev) => {
+      const next = [];
+      for (const p of prev) {
+        const nx = p.x + p.vx;
+        const ny = p.y + p.vy;
+        const inBounds = nx > -10 && nx < SCREEN_WIDTH + 10 && ny > MENUBAR_HEIGHT && ny < SCREEN_HEIGHT + 10;
+        if (inBounds) {
+          next.push({ ...p, x: nx, y: ny });
+        } else if (!p.fromWatchdog) {
+          setScore((s) => s - 1);
+        }
+      }
+      return next;
+    });
 
     setEnemies((prev) =>
       prev.map((enemy) => {
@@ -618,6 +654,9 @@ export default function DesktopWars() {
 
     setProjectiles((prev) => {
       const remaining = [];
+      let trashUnitsRemaining = clutterSnap.length;
+      const trashX = 580 + 16;
+      const trashY = 420 + 18;
       for (const proj of prev) {
         let hit = false;
         setEnemies((enemiesNow) =>
@@ -656,6 +695,17 @@ export default function DesktopWars() {
             })
             .filter(Boolean)
         );
+        if (!hit) {
+          const distToTrash = Math.sqrt((proj.x - trashX) ** 2 + (proj.y - trashY) ** 2);
+          if (distToTrash < 18) {
+            hit = true;
+            if (trashUnitsRemaining > 0) {
+              trashUnitsRemaining -= 1;
+              setClutter((c) => (c.length > 0 ? c.slice(0, -1) : c));
+              setPlayer((p) => ({ ...p, ramPressure: Math.max(0, p.ramPressure - 8) }));
+            }
+          }
+        }
         if (!hit) remaining.push(proj);
       }
       return remaining;
@@ -672,26 +722,34 @@ export default function DesktopWars() {
               prev
                 .map((e) => {
                   if (e.id !== enemy.id) return e;
-                  if (e.hp <= 3) {
-                    setScore((s) => s + 10);
-                    return null;
-                  }
-                  return { ...e, hp: e.hp - 3, stunned: 30 };
+                  setScore((s) => s + 10);
+                  return null;
                 })
                 .filter(Boolean)
             );
           } else if (!playerSnap.isDashing) {
             setPlayer((prev) => ({ ...prev, hp: prev.hp - 1, invincible: 60, isHit: true }));
+            setScore((s) => s - 5);
             break;
           }
         }
       }
     }
 
+    let folderDamage = 0;
     for (const enemy of enemiesSnap) {
       if (enemy.stunned > 0) continue;
       const dist = Math.sqrt((enemy.x - 320) ** 2 + (enemy.y - 280) ** 2);
-      if (dist < 35) setSystemFolderHP((prev) => Math.max(0, prev - 0.05));
+      if (dist < 35) folderDamage += 0.05;
+    }
+    if (folderDamage > 0) {
+      setSystemFolderHP((prev) => Math.max(0, prev - folderDamage));
+      systemFolderDamageRef.current += folderDamage;
+      if (systemFolderDamageRef.current >= 1) {
+        const whole = Math.floor(systemFolderDamageRef.current);
+        systemFolderDamageRef.current -= whole;
+        setScore((s) => s - whole);
+      }
     }
 
     setPickups((prev) =>
@@ -734,34 +792,34 @@ export default function DesktopWars() {
       const enemySpeed = 0.5 + waveSnap * 0.15 + Math.random() * 0.2;
       setEnemies((prev) => [
         ...prev,
-        { id: Math.random(), type: 'regi-mite', x: spawnX, y: spawnY, hp: waveSnap >= 3 ? 3 : 2, size: 64, flipX: side === 0, speed: enemySpeed, frame: 0, stunned: 0 },
+        { id: Math.random(), type: 'regi-mite', x: spawnX, y: spawnY, hp: 3, maxHp: 3, size: 64, flipX: side === 0, speed: enemySpeed, frame: 0, stunned: 0 },
       ]);
 
-      if (waveSnap >= 2 && Math.random() < 0.25) {
-        const gSide = Math.floor(Math.random() * 3);
-        let gX;
-        let gY;
+	      if (waveSnap >= 2 && Math.random() < 0.25) {
+	        const gSide = Math.floor(Math.random() * 3);
+	        let gX;
+	        let gY;
         if (gSide === 0) { gX = -15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
         else if (gSide === 1) { gX = SCREEN_WIDTH + 15; gY = MENUBAR_HEIGHT + 80 + Math.random() * 200; }
         else { gX = 80 + Math.random() * (SCREEN_WIDTH - 160); gY = SCREEN_HEIGHT + 15; }
 
-        setEnemies((prev) => [
-          ...prev,
-          { id: Math.random(), type: 'popup-gremlin', x: gX, y: gY, hp: 1.5, size: 36, speed: 1.3 + Math.random() * 0.5, frame: Math.random() * 16, stunned: 0, bounceAngle: Math.random() * Math.PI * 2, bounceTimer: 0 },
-        ]);
-      }
+	        setEnemies((prev) => [
+	          ...prev,
+	          { id: Math.random(), type: 'popup-gremlin', x: gX, y: gY, hp: 2, maxHp: 2, size: 36, speed: 2.0 + Math.random() * 0.9, frame: Math.random() * 16, stunned: 0, bounceAngle: Math.random() * Math.PI * 2, bounceTimer: 0 },
+	        ]);
+	      }
 
-      if (waveSnap >= 2 && Math.random() < 0.15) {
-        const spySize = 64;
-        const sSide = Math.floor(Math.random() * 3);
-        let sX;
-        let sY;
+	      if (waveSnap >= 2 && Math.random() < 0.15) {
+	        const spySize = 40;
+	        const sSide = Math.floor(Math.random() * 3);
+	        let sX;
+	        let sY;
         if (sSide === 0) { sX = -spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
         else if (sSide === 1) { sX = SCREEN_WIDTH + spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
         else { sX = spySize / 2 + Math.random() * (SCREEN_WIDTH - spySize); sY = SCREEN_HEIGHT + spySize / 2; }
 
-        setEnemies((prev) => [...prev, { id: Math.random(), type: 'spy-dot', x: sX, y: sY, hp: 0.5, size: spySize, speed: 0.35, frame: 0, stunned: 0 }]);
-      }
+	        setEnemies((prev) => [...prev, { id: Math.random(), type: 'spy-dot', x: sX, y: sY, hp: 5, maxHp: 5, size: spySize, speed: 0.42, frame: 0, stunned: 0 }]);
+	      }
 
       if (waveSnap === 3 && Math.random() < 0.3) {
         const eSide = Math.floor(Math.random() * 3);
@@ -772,9 +830,23 @@ export default function DesktopWars() {
         else { eX = 100 + Math.random() * (SCREEN_WIDTH - 200); eY = SCREEN_HEIGHT + 15; }
 
         const extraType = Math.random() < 0.5 ? 'regi-mite' : 'popup-gremlin';
-        setEnemies((prev) => [
-          ...prev,
-          { id: Math.random(), type: extraType, x: eX, y: eY, hp: extraType === 'regi-mite' ? 2 : 1.5, size: extraType === 'regi-mite' ? 64 : 36, flipX: eSide === 0, speed: 0.8 + Math.random() * 0.4, frame: 0, stunned: 0, bounceAngle: Math.random() * Math.PI * 2, bounceTimer: 0 },
+	        setEnemies((prev) => [
+	          ...prev,
+	          {
+	            id: Math.random(),
+	            type: extraType,
+            x: eX,
+            y: eY,
+            hp: extraType === 'regi-mite' ? 3 : 2,
+            maxHp: extraType === 'regi-mite' ? 3 : 2,
+	            size: extraType === 'regi-mite' ? 64 : 36,
+	            flipX: eSide === 0,
+	            speed: extraType === 'popup-gremlin' ? 2.2 + Math.random() * 0.9 : 0.8 + Math.random() * 0.4,
+	            frame: 0,
+	            stunned: 0,
+	            bounceAngle: Math.random() * Math.PI * 2,
+	            bounceTimer: 0,
+          },
         ]);
       }
     }
@@ -800,6 +872,9 @@ export default function DesktopWars() {
     setWaveTimer((prev) => {
       const newTime = prev - dt / 1000;
       if (newTime <= 0) {
+        const deployableCount = folderWallsSnap.length + deployablesSnap.length;
+        const deployableBonus = Math.max(0, (11 - deployableCount) * 10);
+        if (deployableBonus > 0) setScore((s) => s + deployableBonus);
         if (waveSnap === 1) {
           setWave(2);
           return 90;
@@ -856,9 +931,9 @@ export default function DesktopWars() {
   }, [gameState, isWebdriver, tick]);
 
   useEffect(() => {
-    window.render_game_to_text = () => {
-      const s = stateRef.current;
-      if (!s) return null;
+	    window.render_game_to_text = () => {
+	      const s = stateRef.current;
+	      if (!s) return null;
       const payload = {
         mode: s.gameState,
         coords: { origin: 'top-left', x: 'right', y: 'down', units: 'px' },
@@ -875,16 +950,16 @@ export default function DesktopWars() {
           emp: s.player.empCharge,
           power_up: s.player.powerUp,
         },
-        enemies: s.enemies.map((e) => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, stunned: e.stunned, size: e.size })),
-        pickups: s.pickups.map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y })),
-        projectiles: s.projectiles.map((p) => ({ id: p.id, x: p.x, y: p.y, from_watchdog: !!p.fromWatchdog })),
-        folder_walls: s.folderWalls.map((w) => ({ id: w.id, x: w.x, y: w.y, hp: w.hp })),
-        deployables: s.deployables.map((d) => ({ id: d.id, type: d.type, x: d.x, y: d.y, aim_dir: d.aimDir })),
-        popups: s.popups.map((p) => ({ id: p.id, type: p.type, swapped: p.swapped, countdown: p.countdown })),
-        clutter_count: s.clutter.length,
-      };
-      return JSON.stringify(payload);
-    };
+	        enemies: s.enemies.map((e) => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, max_hp: e.maxHp, stunned: e.stunned, size: e.size })),
+	        pickups: s.pickups.map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y })),
+	        projectiles: s.projectiles.map((p) => ({ id: p.id, x: p.x, y: p.y, from_watchdog: !!p.fromWatchdog })),
+	        folder_walls: s.folderWalls.map((w) => ({ id: w.id, x: w.x, y: w.y, hp: w.hp })),
+	        deployables: s.deployables.map((d) => ({ id: d.id, type: d.type, x: d.x, y: d.y, aim_dir: d.aimDir })),
+	        popups: s.popups.map((p) => ({ id: p.id, type: p.type, swapped: p.swapped, countdown: p.countdown })),
+	        clutter_count: s.clutter.length,
+	      };
+	      return JSON.stringify(payload);
+	    };
 
     window.advanceTime = async (ms) => {
       const frameMs = 1000 / 60;
@@ -1090,7 +1165,7 @@ export default function DesktopWars() {
                           />
                         ))}
 
-                        <Trash x={580} y={420} clutter={clutter} setClutter={setClutter} setPlayer={setPlayer} />
+                        <Trash x={580} y={420} clutter={clutter} />
 
                         <PlayerCursor {...player} mousePos={mousePos} />
                       </>
@@ -1175,49 +1250,107 @@ export default function DesktopWars() {
                   Reset
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-                  {[1,2,3,4,5].map(i => (
-                    <div key={i} style={{ width: 3, height: 2 + i * 2, background: player.hp >= i ? '#222' : '#bbb', borderRadius: 1 }} />
-                  ))}
-                </div>
-                <div style={{
-                  width: 12, height: 12, borderRadius: '50%',
-                  background: player.empCharge >= 100 ? '#4a90d9' : '#999',
-                  boxShadow: player.empCharge >= 100 ? '0 0 6px #4af' : 'none'
-                }} />
-                {/* CPU Heat indicator bar */}
-                <div style={{
-                  width: 24, height: 8,
-                  background: '#ddd',
-                  borderRadius: 2,
-                  border: '1px solid #888',
-                  overflow: 'hidden'
-                }} title={`CPU: ${Math.floor(player.cpuHeat)}%`}>
-                  <div style={{
-                    width: `${player.cpuHeat}%`,
-                    height: '100%',
-                    background: player.cpuHeat >= 90 ? '#f00' : player.cpuHeat > 60 ? '#f80' : '#fa0',
-                    animation: player.cpuHeat >= 90 ? 'blink 0.2s infinite' : 'none'
-                  }} />
-                </div>
-                {/* RAM pressure indicator bar */}
-                <div style={{
-                  width: 24, height: 8,
-                  background: '#ddd',
-                  borderRadius: 2,
-                  border: '1px solid #888',
-                  overflow: 'hidden'
-                }} title={`RAM: ${Math.floor(player.ramPressure)}%`}>
-                  <div style={{
-                    width: `${player.ramPressure}%`,
-                    height: '100%',
-                    background: player.ramPressure > 70 ? '#e55' : player.ramPressure > 40 ? '#ea5' : '#5a5'
-                  }} />
-                </div>
-                {player.powerUp && (
-                  <span style={{
-                    padding: '1px 4px', borderRadius: 2,
+	              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+	                <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+	                  {[1,2,3,4,5].map(i => (
+	                    <div key={i} style={{ width: 3, height: 2 + i * 2, background: player.hp >= i ? '#222' : '#bbb', borderRadius: 1 }} />
+	                  ))}
+	                </div>
+	                <div style={{
+	                  width: 12, height: 12, borderRadius: '50%',
+	                  background: player.empCharge >= 100 ? '#4a90d9' : '#999',
+	                  boxShadow: player.empCharge >= 100 ? '0 0 6px #4af' : 'none'
+	                }} />
+	                {/* CPU Heat indicator (chip + segmented bar) */}
+	                <div
+	                  title={`CPU Heat: ${Math.floor(player.cpuHeat)}%`}
+	                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+	                >
+	                  <CpuIcon size={14} hot={player.cpuHeat >= 90} />
+	                  <div
+	                    style={{
+	                      width: 42,
+	                      height: 10,
+	                      background: 'linear-gradient(180deg, #f4f4f4 0%, #d7d7d7 100%)',
+	                      position: 'relative',
+	                      borderRadius: 3,
+	                      border: '1px solid #666',
+	                      overflow: 'hidden',
+	                      boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.25)',
+	                    }}
+	                  >
+	                    <div
+	                      style={{
+	                        width: `${player.cpuHeat}%`,
+	                        height: '100%',
+	                        background:
+	                          player.cpuHeat >= 90
+	                            ? 'linear-gradient(90deg, #ff9a3c 0%, #ff4d4d 60%, #ff4d4d 100%)'
+	                            : player.cpuHeat > 60
+	                              ? 'linear-gradient(90deg, #ffd35a 0%, #ff9a3c 90%)'
+	                              : 'linear-gradient(90deg, #ffd35a 0%, #f2c94c 100%)',
+	                        boxShadow: player.cpuHeat >= 90 ? '0 0 8px rgba(255,77,77,0.55)' : 'none',
+	                        animation: player.cpuHeat >= 90 ? 'blink 0.2s infinite' : 'none',
+	                      }}
+	                    />
+	                    <div
+	                      style={{
+	                        position: 'absolute',
+	                        inset: 0,
+	                        backgroundImage:
+	                          'repeating-linear-gradient(90deg, rgba(0,0,0,0.25) 0px, rgba(0,0,0,0.25) 1px, transparent 1px, transparent 7px)',
+	                        opacity: 0.35,
+	                        pointerEvents: 'none',
+	                      }}
+	                    />
+	                  </div>
+	                </div>
+	                {/* RAM pressure indicator (stick + segmented bar) */}
+	                <div
+	                  title={`RAM Pressure: ${Math.floor(player.ramPressure)}%`}
+	                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+	                >
+	                  <RamIcon size={14} high={player.ramPressure >= 80} />
+	                  <div
+	                    style={{
+	                      width: 42,
+	                      height: 10,
+	                      background: 'linear-gradient(180deg, #f4f4f4 0%, #d7d7d7 100%)',
+	                      position: 'relative',
+	                      borderRadius: 3,
+	                      border: '1px solid #666',
+	                      overflow: 'hidden',
+	                      boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.25)',
+	                    }}
+	                  >
+	                    <div
+	                      style={{
+	                        width: `${player.ramPressure}%`,
+	                        height: '100%',
+	                        background:
+	                          player.ramPressure > 70
+	                            ? 'linear-gradient(90deg, #ffd35a 0%, #ff4d4d 80%, #ff4d4d 100%)'
+	                            : player.ramPressure > 40
+	                              ? 'linear-gradient(90deg, #67d6ff 0%, #ffd35a 90%)'
+	                              : 'linear-gradient(90deg, #67d6ff 0%, #4bbf5a 100%)',
+	                        boxShadow: player.ramPressure >= 80 ? '0 0 8px rgba(255,77,77,0.45)' : 'none',
+	                      }}
+	                    />
+	                    <div
+	                      style={{
+	                        position: 'absolute',
+	                        inset: 0,
+	                        backgroundImage:
+	                          'repeating-linear-gradient(90deg, rgba(0,0,0,0.25) 0px, rgba(0,0,0,0.25) 1px, transparent 1px, transparent 7px)',
+	                        opacity: 0.35,
+	                        pointerEvents: 'none',
+	                      }}
+	                    />
+	                  </div>
+	                </div>
+	                {player.powerUp && (
+	                  <span style={{
+	                    padding: '1px 4px', borderRadius: 2,
                     background: player.powerUp === 'rapid' ? '#f80' : player.powerUp === 'triple' ? '#08f' : '#fa0',
                     color: '#fff', fontSize: 5
                   }}>
@@ -1329,7 +1462,7 @@ export default function DesktopWars() {
                     <SystemFolder x={320} y={280} hp={systemFolderHP} showIcon={false} />
 
                     {/* Trash: DOM hitbox + badge only (icon is 3D) */}
-                    <Trash x={580} y={420} clutter={clutter} setClutter={setClutter} setPlayer={setPlayer} showIcon={false} />
+                    <Trash x={580} y={420} clutter={clutter} showIcon={false} />
 
                     <AimOverlay {...player} mousePos={mousePos} />
                   </>
@@ -1535,62 +1668,84 @@ export default function DesktopWars() {
 	                <div>F - Fullscreen</div>
 	              </div>
 
-	              <div style={{ fontSize: 9, marginBottom: 8, color: '#fa0' }}>ENEMIES</div>
-	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#e9d9c6', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Regi-Mite</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#ff6b7a', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)', transform: 'rotate(20deg)' }} />
-	                  <span>Gremlin</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#ff3b3b', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Spy-Dot</span>
-	                </div>
-	              </div>
+		              <div style={{ fontSize: 9, marginBottom: 8, color: '#fa0' }}>ENEMIES</div>
+		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <RegiMiteIcon size={16} />
+		                  </span>
+		                  <span>Regi-Mite</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <GremlinIcon size={16} />
+		                  </span>
+		                  <span>Gremlin</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <SpyDotIcon size={16} />
+		                  </span>
+		                  <span>Spy-Dot</span>
+		                </div>
+		              </div>
 
-	              <div style={{ fontSize: 9, marginBottom: 8, color: '#5f5' }}>POWER-UPS</div>
-	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#e04444', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Heal</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: 'rgba(103,214,255,0.85)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Coolant</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#ff9a3c', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Rapid</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#3c8bff', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Triple</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#f2c94c', borderRadius: 6, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Giant</span>
-	                </div>
-	              </div>
+		              <div style={{ fontSize: 9, marginBottom: 8, color: '#5f5' }}>POWER-UPS</div>
+		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <AppleIcon size={16} />
+		                  </span>
+		                  <span>Heal</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <CoolantIcon size={16} />
+		                  </span>
+		                  <span>Coolant</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <PowerRapidIcon size={16} />
+		                  </span>
+		                  <span>Rapid</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <PowerTripleIcon size={16} />
+		                  </span>
+		                  <span>Triple</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <PowerGiantIcon size={16} />
+		                  </span>
+		                  <span>Giant</span>
+		                </div>
+		              </div>
 
-	              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>DEPLOYABLES</div>
-	              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.9 }}>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#d4a456', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Wall</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#f2c94c', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Watchdog</span>
-	                </div>
-	                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-	                  <span style={{ width: 12, height: 12, background: '#f7f0a6', borderRadius: 3, border: '1px solid rgba(0,0,0,0.35)' }} />
-	                  <span>Floppy Disk</span>
-	                </div>
-	              </div>
-	            </div>
+		              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>DEPLOYABLES</div>
+		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.9 }}>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <FolderWallIcon size={16} />
+		                  </span>
+		                  <span>Wall</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <WatchdogIcon size={16} />
+		                  </span>
+		                  <span>Watchdog</span>
+		                </div>
+		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+		                    <FloppyDiskIcon size={16} />
+		                  </span>
+		                  <span>Floppy Disk</span>
+		                </div>
+		              </div>
+		            </div>
 
 	            {/* Monitor overlay (transparent hole) */}
 	            <Sprite
@@ -1635,12 +1790,12 @@ export default function DesktopWars() {
         
         {/* Resources */}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 9, color: '#f55', marginBottom: 8 }}>RESOURCES</div>
-          <div style={{ fontSize: 7, lineHeight: 2 }}>
-            <div><span style={{ color: '#faa' }}>CPU</span> - Overheats when shooting; Coolant helps</div>
-            <div><span style={{ color: '#ffa' }}>RAM</span> - Clutter slows you down; empty Trash</div>
-          </div>
-        </div>
+	          <div style={{ fontSize: 9, color: '#f55', marginBottom: 8 }}>RESOURCES</div>
+	          <div style={{ fontSize: 7, lineHeight: 2 }}>
+	            <div><span style={{ color: '#faa' }}>CPU</span> - Overheats when shooting; Coolant helps</div>
+	            <div><span style={{ color: '#ffa' }}>RAM</span> - Clutter slows you down; shoot Trash to clear</div>
+	          </div>
+	        </div>
         
         {/* Dark Patterns */}
         <div style={{ flex: 1 }}>

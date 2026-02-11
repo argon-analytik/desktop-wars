@@ -47,9 +47,9 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 
 | Enemy | Behavior |
 |---|---|
-| **Regi-Mite** | Standard enemy, targets the System Folder |
-| **Popup-Gremlin** | Fast and erratic, bounces randomly |
-| **Spy-Dot** | Small tracker, relentlessly chases the player |
+| **Regi-Mite** | Standard enemy (3 hits), targets the System Folder |
+| **Popup-Gremlin** | Fast and erratic (2 hits), bounces randomly |
+| **Spy-Dot** | Small tracker (5 hits), relentlessly chases the player |
 
 ---
 
@@ -78,7 +78,7 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 
 - Enemy drops and clutter increase RAM usage
 - High RAM causes **movement slowdown** of up to 80%
-- Click the **Trash** to clear clutter
+- Shoot the **Trash** to clear clutter (1 shot per clutter)
 
 ---
 
@@ -90,7 +90,7 @@ Before Wave 1, you have **25 seconds** to prepare your defenses:
 |---|---:|---|
 | Folder Wall | 8 | Blocks enemy movement |
 | Watchdog | 1 | Automated turret |
-| Sticky Note | 2 | Decoy that attracts enemies |
+| Floppy Disk | 2 | Decoy that attracts enemies |
 
 ---
 
@@ -215,10 +215,10 @@ desktop-wars/
 ## Strategy Tips
 
 1. Avoid spamming shots. CPU heat is your primary limiter
-2. Empty the trash frequently to stay mobile
+2. Shoot the trash to clear clutter and stay mobile
 3. Read popups carefully. Button positions are deceptive
 4. Use walls to funnel enemies into kill zones
-5. Deploy sticky notes as effective decoys
+5. Deploy floppy disks as effective decoys
 6. Save EMP blasts for emergencies
 7. Collect coolant early to maintain sustained fire
 

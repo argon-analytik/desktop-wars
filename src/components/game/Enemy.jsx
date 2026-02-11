@@ -3,7 +3,7 @@ import { SPRITES } from '../../assets/manifest.js';
 import Sprite from '../shared/Sprite.jsx';
 import SpriteSheet from '../shared/SpriteSheet.jsx';
 
-export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX = false }) {
+export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX = false, hp, maxHp }) {
   const spriteSrc =
     type === 'regi-mite'
       ? SPRITES.enemyRegiMite
@@ -24,11 +24,45 @@ export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX =
     pointerEvents: 'none',
   };
 
+  const safeMaxHp = Number.isFinite(maxHp) ? Math.max(1, Math.min(8, Math.round(maxHp))) : 0;
+  const safeHp = Number.isFinite(hp) ? Math.max(0, Math.min(safeMaxHp, Math.round(hp))) : 0;
+  const showHp = safeMaxHp > 1;
+  const hpColor = type === 'regi-mite' ? '#ffd35a' : type === 'popup-gremlin' ? '#ff4da6' : '#ff3b3b';
+
   if (type === 'regi-mite') {
     const baseFrame = Number.isFinite(frame) ? frame : 0;
     const frameIndex = Math.floor(baseFrame) % 16;
     return (
       <div style={style}>
+        {showHp && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -8,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 2,
+              padding: 2,
+              background: 'rgba(11,16,32,0.55)',
+              borderRadius: 3,
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+          >
+            {Array.from({ length: safeMaxHp }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 6,
+                  height: 4,
+                  borderRadius: 2,
+                  background: i < safeHp ? hpColor : '#0b1020',
+                  opacity: i < safeHp ? 0.95 : 0.25,
+                }}
+              />
+            ))}
+          </div>
+        )}
         <div style={{ width: size, height: size, transform: flipX ? 'scaleX(-1)' : undefined, transformOrigin: 'center' }}>
           <SpriteSheet
             src={spriteSrc}
@@ -86,6 +120,35 @@ export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX =
           transform: `translateY(${bounce}px) rotate(${wobble}deg) scale(${1 + Math.sin(baseFrame * 4) * 0.15})`,
         }}
       >
+        {showHp && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -8,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 2,
+              padding: 2,
+              background: 'rgba(11,16,32,0.55)',
+              borderRadius: 3,
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+          >
+            {Array.from({ length: safeMaxHp }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 6,
+                  height: 4,
+                  borderRadius: 2,
+                  background: i < safeHp ? hpColor : '#0b1020',
+                  opacity: i < safeHp ? 0.95 : 0.25,
+                }}
+              />
+            ))}
+          </div>
+        )}
         <SpriteSheet
           src={spriteSrc}
           width={size}
@@ -159,6 +222,35 @@ export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX =
     const frameIndex = Math.floor(baseFrame) % 16;
     return (
       <div style={{ ...style, animation: 'blink 0.7s infinite' }}>
+        {showHp && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -8,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 2,
+              padding: 2,
+              background: 'rgba(11,16,32,0.55)',
+              borderRadius: 3,
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+          >
+            {Array.from({ length: safeMaxHp }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 6,
+                  height: 4,
+                  borderRadius: 2,
+                  background: i < safeHp ? hpColor : '#0b1020',
+                  opacity: i < safeHp ? 0.95 : 0.25,
+                }}
+              />
+            ))}
+          </div>
+        )}
         <SpriteSheet
           src={spriteSrc}
           width={size}

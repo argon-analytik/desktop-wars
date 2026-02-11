@@ -1,31 +1,16 @@
-import { React, useState } from '../../lib/react.js';
+import { React } from '../../lib/react.js';
 import { SPRITES } from '../../assets/manifest.js';
 import Sprite from '../shared/Sprite.jsx';
 
-export default function Trash({ x, y, clutter, setClutter, setPlayer, showIcon = true }) {
-  const [eating, setEating] = useState(false);
-
-  const handleClick = () => {
-    if (clutter.length > 0) {
-      setEating(true);
-      setPlayer((prev) => ({ ...prev, ramPressure: Math.max(0, prev.ramPressure - clutter.length * 8) }));
-      setClutter([]);
-      setTimeout(() => setEating(false), 300);
-    }
-  };
-
+export default function Trash({ x, y, clutter, showIcon = true }) {
   return (
     <div
-      onClick={handleClick}
       style={{
         position: 'absolute',
         left: x,
         top: y,
         width: 32,
         height: 36,
-        cursor: clutter.length > 0 ? 'pointer' : 'default',
-        transform: eating ? 'scale(1.2)' : 'scale(1)',
-        transition: 'transform 0.15s',
         zIndex: 30,
       }}
     >

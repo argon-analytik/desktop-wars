@@ -312,12 +312,30 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
   const projectileGeo = new THREE.SphereGeometry(4, 12, 12);
   const glowGeo = new THREE.PlaneGeometry(1, 1);
+  const hpBorderGeo = (() => {
+    const geo = new THREE.BufferGeometry();
+    const verts = new Float32Array([
+      -0.5, -0.5, 0,
+       0.5, -0.5, 0,
+       0.5,  0.5, 0,
+      -0.5,  0.5, 0,
+    ]);
+    // Line segments: 0-1, 1-2, 2-3, 3-0
+    const idx = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0]);
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    return geo;
+  })();
   const trailGeo = new THREE.PlaneGeometry(26, 6);
   // Trail extends behind the projectile in +x direction (after rotation).
   trailGeo.translate(-13, 0, 0);
   const clutterGeo = new THREE.PlaneGeometry(16, 12);
   const coolantGeo = makeRoundedExtrudeGeometry(14, 14, 14, 3);
   const coolantCoreGeo = new THREE.BoxGeometry(8, 8, 8);
+  const coolantCanGeo = new THREE.CylinderGeometry(7, 7, 16, 18, 1, false);
+  const coolantCapGeo = new THREE.CylinderGeometry(7.6, 7.6, 3, 18, 1, false);
+  const coolantCoreCylGeo = new THREE.CylinderGeometry(4.2, 4.2, 11, 18, 1, false);
+  const coolantSnowArmGeo = new THREE.BoxGeometry(1.2, 9.5, 1.2);
   const appleGeo = new THREE.SphereGeometry(8, 16, 16);
   const appleLeafGeo = new THREE.BoxGeometry(4, 2, 2);
   const appleStemGeo = new THREE.CylinderGeometry(1.2, 1.6, 6, 10);
@@ -325,6 +343,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const powerCapsuleGeo = new THREE.CapsuleGeometry(5, 10, 6, 12);
   const powerPrismGeo = makeRoundedExtrudeGeometry(14, 10, 6, 2);
   const powerShieldGeo = makeRoundedExtrudeGeometry(16, 18, 6, 6);
+  const powerFinGeo = makeRoundedExtrudeGeometry(6, 4, 1.4, 1.2);
+  const powerStripeGeo = new THREE.BoxGeometry(2.2, 12, 1.2);
+  const powerTripleBarrelGeo = new THREE.CapsuleGeometry(2.6, 6.2, 4, 10);
+  const powerCrownSpikeGeo = new THREE.ConeGeometry(2.2, 5.5, 10);
+  const powerCrownBandGeo = new THREE.TorusGeometry(6.5, 1.2, 10, 18);
 
   const trashBodyGeo = new THREE.CylinderGeometry(12, 10, 22, 18, 1, false);
   const trashLidGeo = new THREE.CylinderGeometry(13, 13, 4, 18, 1, false);
@@ -348,6 +371,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const watchdogHeadGeo = makeRoundedExtrudeGeometry(18, 12, 10, 4);
   const watchdogBarrelGeo = new THREE.CylinderGeometry(2, 2, 10, 10);
   const stickyGeo = makeRoundedExtrudeGeometry(16, 12, 3, 2);
+  const floppyBodyGeo = makeRoundedExtrudeGeometry(20, 20, 4, 3);
+  const floppyLabelGeo = makeRoundedExtrudeGeometry(14, 10, 1.6, 2);
+  const floppyShutterGeo = makeRoundedExtrudeGeometry(16, 6, 1.6, 2);
+  const floppyHoleGeo = makeRoundedExtrudeGeometry(8, 6, 1.2, 2);
+  const floppyNotchGeo = new THREE.BoxGeometry(3.5, 3.5, 1.2);
 
   const empRingGeo = (() => {
     const inner = 18;
@@ -544,6 +572,18 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     emissive: pickColorHex('#2bbcff'),
     emissiveIntensity: 0.85,
   });
+  const coolantCapMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#e6e8ed'),
+    roughness: 0.55,
+    metalness: 0.18,
+  });
+  const coolantSnowMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#c7f3ff'),
+    roughness: 0.35,
+    metalness: 0.0,
+    emissive: pickColorHex('#47c9ff'),
+    emissiveIntensity: 0.35,
+  });
   const powerRapidMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#ff9a3c'),
     roughness: 0.25,
@@ -693,6 +733,43 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.65,
     metalness: 0.0,
   });
+  const floppyBodyMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#2a2f3c'),
+    roughness: 0.65,
+    metalness: 0.18,
+  });
+  const floppyLabelMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#e6e8ed'),
+    roughness: 0.85,
+    metalness: 0.0,
+  });
+  const floppyShutterMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#aab3c5'),
+    roughness: 0.45,
+    metalness: 0.35,
+  });
+  const floppyHoleMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#0b1020'),
+    roughness: 0.9,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.85,
+  });
+
+  const hpBackMat = new THREE.MeshBasicMaterial({
+    color: 0x0b1020,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  hpBackMat.userData.fixedOpacity = true;
+  const hpEdgeMat = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.28,
+    toneMapped: false,
+  });
 
   const wallBaseColor = pickColorHex('#d4a456');
 
@@ -808,6 +885,8 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     leafMat,
     coolantMat,
     coolantCoreMat,
+    coolantCapMat,
+    coolantSnowMat,
     powerRapidMat,
     powerTripleMat,
     powerGiantMat,
@@ -831,6 +910,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogHeadMat,
     watchdogBarrelMat,
     stickyMat,
+    floppyBodyMat,
+    floppyLabelMat,
+    floppyShutterMat,
+    floppyHoleMat,
+    hpBackMat,
+    hpEdgeMat,
     bgMat,
     shadowMat,
     empRing.material,
@@ -919,13 +1004,38 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   }
 
   function ensureSticky(id) {
-    let m = deployables.get(id);
-    if (m) return m;
-    m = new THREE.Mesh(stickyGeo, stickyMat);
-    m.castShadow = !automationMode;
-    scene.add(m);
-    deployables.set(id, m);
-    return m;
+    let g = deployables.get(id);
+    if (g) return g;
+    g = new THREE.Group();
+
+    // "Floppy Disk" deployable: make it read as an actual disk, not a flat sticky note.
+    const body = new THREE.Mesh(floppyBodyGeo, floppyBodyMat);
+    body.castShadow = !automationMode;
+    addBackfaceOutline(body, 1.08);
+
+    const label = new THREE.Mesh(floppyLabelGeo, floppyLabelMat);
+    label.castShadow = false;
+    label.position.set(0, 2.5, 3.2);
+    addBackfaceOutline(label, 1.04);
+
+    const shutter = new THREE.Mesh(floppyShutterGeo, floppyShutterMat);
+    shutter.castShadow = !automationMode;
+    shutter.position.set(0, -6.5, 3.0);
+    addBackfaceOutline(shutter, 1.04);
+
+    const hole = new THREE.Mesh(floppyHoleGeo, floppyHoleMat);
+    hole.castShadow = false;
+    hole.position.set(0, -6.5, 4.2);
+
+    // Small accent notch for silhouette.
+    const notch = new THREE.Mesh(floppyNotchGeo, lockMat);
+    notch.castShadow = !automationMode;
+    notch.position.set(7.2, -7.2, 2.6);
+
+    g.add(body, label, shutter, hole, notch);
+    scene.add(g);
+    deployables.set(id, g);
+    return g;
   }
 
   function ensureEnemy(id, type) {
@@ -1066,6 +1176,58 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       g.add(body, shell, ring, pupil);
     }
 
+    // Enemy HP bar (segments) for readability. Kept small and mostly translucent when full.
+    const maxSegments = type === 'regi-mite' ? 3 : type === 'popup-gremlin' ? 2 : type === 'spy-dot' ? 5 : 0;
+    if (maxSegments > 1) {
+      const hpColor = type === 'regi-mite' ? new THREE.Color('#ffd35a') : type === 'popup-gremlin' ? new THREE.Color('#ff4da6') : new THREE.Color('#ff3b3b');
+      const barW = type === 'regi-mite' ? 44 : type === 'spy-dot' ? 40 : 36;
+      const barH = 6;
+      const pad = 1.6;
+      const gap = 1.4;
+      const segW = (barW - pad * 2 - gap * (maxSegments - 1)) / maxSegments;
+
+      const hpBar = new THREE.Group();
+      hpBar.position.set(0, type === 'popup-gremlin' ? -26 : type === 'spy-dot' ? -24 : -32, 0);
+
+      const back = new THREE.Mesh(glowGeo, hpBackMat);
+      back.scale.set(barW, barH, 1);
+      back.position.set(0, 0, 14);
+      back.castShadow = false;
+      back.receiveShadow = false;
+      hpBar.add(back);
+
+      const segs = [];
+      for (let i = 0; i < maxSegments; i += 1) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: hpColor.clone(),
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+          toneMapped: false,
+        });
+        mat.userData.fixedOpacity = true;
+        const seg = new THREE.Mesh(glowGeo, mat);
+        seg.scale.set(segW, barH - 2.2, 1);
+        seg.position.set(-barW / 2 + pad + segW / 2 + i * (segW + gap), 0, 14.2);
+        seg.castShadow = false;
+        seg.receiveShadow = false;
+        segs.push(seg);
+        hpBar.add(seg);
+      }
+
+      // Optional border for contrast.
+      const border = new THREE.LineSegments(hpBorderGeo, hpEdgeMat);
+      border.position.set(0, 0, 14.4);
+      border.scale.set(barW, barH, 1);
+      hpBar.add(border);
+
+      g.userData.hpBar = hpBar;
+      g.userData.hpSegs = segs;
+      g.userData.hpColor = hpColor;
+      g.userData.hpMaxSegments = maxSegments;
+      g.add(hpBar);
+    }
+
     scene.add(g);
     enemies.set(id, g);
     return g;
@@ -1105,35 +1267,103 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
       g.add(body, highlight, stem, leaf);
     } else if (type === 'coolant') {
-      const cube = new THREE.Mesh(coolantGeo, coolantMat);
-      cube.castShadow = !automationMode;
-      addBackfaceOutline(cube, 1.06);
+      // Coolant: read as a small cryo canister (more recognizable than a plain cube).
+      const can = new THREE.Mesh(coolantCanGeo, coolantMat);
+      can.castShadow = !automationMode;
+      addBackfaceOutline(can, 1.06);
 
-      const core = new THREE.Mesh(coolantCoreGeo, coolantCoreMat);
+      const cap = new THREE.Mesh(coolantCapGeo, coolantCapMat);
+      cap.castShadow = !automationMode;
+      cap.position.set(0, -9.5, 0);
+      addBackfaceOutline(cap, 1.05);
+
+      const core = new THREE.Mesh(coolantCoreCylGeo, coolantCoreMat);
       core.castShadow = false;
-      core.position.set(0, 0, 0);
+      core.position.set(0, 1.0, 0);
 
-      addGlowPlane(g, glowCyanMat, 42, -14);
+      const mkArm = (rot) => {
+        const arm = new THREE.Mesh(coolantSnowArmGeo, coolantSnowMat);
+        arm.castShadow = false;
+        arm.position.set(0, 0, 7.8);
+        arm.rotation.z = rot;
+        return arm;
+      };
+      const snow = new THREE.Group();
+      snow.add(mkArm(0), mkArm(Math.PI / 2), mkArm(Math.PI / 4), mkArm(-Math.PI / 4));
 
-      g.add(cube, core);
+      addGlowPlane(g, glowCyanMat, 46, -14);
+
+      g.add(can, cap, core, snow);
     } else if (type === 'powerup-rapid') {
+      // Rapid: capsule + fins + stripes to communicate "speed".
       const cap = new THREE.Mesh(powerCapsuleGeo, powerRapidMat);
       cap.castShadow = !automationMode;
+      cap.rotation.z = Math.PI / 2;
       addBackfaceOutline(cap, 1.06);
-      addGlowPlane(g, glowOrangeMat, 40, -14);
-      g.add(cap);
+
+      const finL = new THREE.Mesh(powerFinGeo, powerRapidMat);
+      finL.castShadow = !automationMode;
+      finL.position.set(-6.4, 0, -1.2);
+      finL.rotation.z = Math.PI / 2;
+      finL.scale.set(0.9, 0.9, 0.9);
+      addBackfaceOutline(finL, 1.04);
+
+      const finR = finL.clone();
+      finR.position.x = 6.4;
+
+      const stripe1 = new THREE.Mesh(powerStripeGeo, watchdogBarrelMat);
+      stripe1.castShadow = false;
+      stripe1.position.set(-2.2, 0, 2.8);
+      stripe1.rotation.z = Math.PI / 2;
+      const stripe2 = stripe1.clone();
+      stripe2.position.x = 2.2;
+
+      addGlowPlane(g, glowOrangeMat, 44, -14);
+      g.add(cap, finL, finR, stripe1, stripe2);
     } else if (type === 'powerup-triple') {
-      const prism = new THREE.Mesh(powerPrismGeo, powerTripleMat);
-      prism.castShadow = !automationMode;
-      addBackfaceOutline(prism, 1.06);
-      addGlowPlane(g, glowBlueMat, 40, -14);
-      g.add(prism);
+      // Triple: cluster of three mini-barrels.
+      const base = new THREE.Mesh(powerPrismGeo, powerTripleMat);
+      base.castShadow = !automationMode;
+      addBackfaceOutline(base, 1.06);
+
+      const mkBarrel = (x, y) => {
+        const b = new THREE.Mesh(powerTripleBarrelGeo, powerTripleMat);
+        b.castShadow = !automationMode;
+        b.rotation.z = Math.PI / 2;
+        b.position.set(x, y, 3.6);
+        addBackfaceOutline(b, 1.04);
+        return b;
+      };
+      const b1 = mkBarrel(-5.4, -2.0);
+      const b2 = mkBarrel(5.4, -2.0);
+      const b3 = mkBarrel(0.0, 6.0);
+
+      addGlowPlane(g, glowBlueMat, 46, -14);
+      g.add(base, b1, b2, b3);
     } else if (type === 'powerup-giant') {
+      // Giant: shield + crown to read as "power".
       const shield = new THREE.Mesh(powerShieldGeo, powerGiantMat);
       shield.castShadow = !automationMode;
       addBackfaceOutline(shield, 1.06);
-      addGlowPlane(g, glowYellowMat, 44, -14);
-      g.add(shield);
+
+      const halo = new THREE.Mesh(powerCrownBandGeo, powerGiantMat);
+      halo.castShadow = false;
+      halo.position.set(0, -11.5, 3.5);
+      halo.rotation.x = Math.PI / 2;
+      halo.scale.set(1.05, 1.05, 1.05);
+
+      const spikes = new THREE.Group();
+      for (let i = 0; i < 3; i += 1) {
+        const a = (i / 3) * Math.PI * 2 + Math.PI / 6;
+        const sp = new THREE.Mesh(powerCrownSpikeGeo, lockMat);
+        sp.castShadow = !automationMode;
+        sp.position.set(Math.cos(a) * 6.5, -14.2, Math.sin(a) * 6.5);
+        sp.rotation.z = 0;
+        spikes.add(sp);
+      }
+
+      addGlowPlane(g, glowYellowMat, 50, -14);
+      g.add(shield, halo, spikes);
     } else {
       const body = new THREE.Mesh(powerCapsuleGeo, powerRapidMat);
       body.castShadow = !automationMode;
@@ -1329,6 +1559,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       const z = 6;
       g.position.set(e.x, e.y, z);
 
+      const intendedSize =
+        Number.isFinite(e.size)
+          ? e.size
+          : e.type === 'regi-mite'
+            ? 64
+            : e.type === 'popup-gremlin'
+              ? 36
+              : e.type === 'spy-dot'
+                ? 48
+                : 48;
+      // Scale visuals so they match the game's collision size more closely (better readability).
+      const visualBaseSize = e.type === 'regi-mite' ? 48 : e.type === 'popup-gremlin' ? 28 : 28;
+      const baseScale = intendedSize / visualBaseSize;
+
       if (e.type === 'popup-gremlin') {
         const f = Number.isFinite(e.frame) ? e.frame : 0;
         const bounce = Math.sin(f * 3) * 4;
@@ -1336,7 +1580,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         const scale = 1 + Math.sin(f * 4) * 0.15;
         g.position.y += bounce;
         g.rotation.z = wobble;
-        g.scale.setScalar(scale);
+        g.scale.setScalar(baseScale * scale);
 
         const body = g.userData.body || null;
         if (body) {
@@ -1363,7 +1607,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         const bob = Math.sin(f * 0.8) * 1.5;
         g.position.y += bob;
         g.rotation.z = 0;
-        g.scale.setScalar(1);
+        g.scale.setScalar(baseScale);
 
         const shell = g.userData.shell || null;
         if (shell) shell.position.z = 2 + Math.sin(f * 1.7) * 0.7;
@@ -1387,7 +1631,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         }
       } else if (e.type === 'spy-dot') {
         g.rotation.z = 0;
-        g.scale.setScalar(1);
+        g.scale.setScalar(baseScale);
         const tt = state.totalTime || 0;
         const pupil = g.userData.pupil || null;
         const ring = g.userData.ring || null;
@@ -1405,6 +1649,29 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         if (shell) shell.rotation.z = tt * 0.55;
       }
 
+      // HP segments.
+      const segs = g.userData.hpSegs;
+      const hpColor = g.userData.hpColor;
+      const maxSegs = Number.isFinite(g.userData.hpMaxSegments) ? g.userData.hpMaxSegments : 0;
+      if (Array.isArray(segs) && segs.length > 0 && maxSegs > 1 && hpColor && hpColor.isColor) {
+        const maxHp = Number.isFinite(e.maxHp) ? Math.max(1, e.maxHp) : maxSegs;
+        const hp = Number.isFinite(e.hp) ? Math.max(0, Math.min(maxHp, e.hp)) : 0;
+        const full = hp >= maxHp;
+        const onOpacity = full ? 0.55 : 0.95;
+        const offOpacity = full ? 0.14 : 0.22;
+        for (let i = 0; i < segs.length; i += 1) {
+          const seg = segs[i];
+          if (!seg || !seg.material || !seg.material.color) continue;
+          if (i < hp) {
+            seg.material.color.copy(hpColor);
+            seg.material.opacity = onOpacity;
+          } else {
+            seg.material.color.set('#0b1020');
+            seg.material.opacity = offOpacity;
+          }
+        }
+      }
+
       // Hit / stunned feedback.
       const stunned = Number.isFinite(e.stunned) ? e.stunned : 0;
       const isHit = !!e.isHit;
@@ -1415,6 +1682,10 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
       if (e.flipX) g.scale.x = -Math.abs(g.scale.x || 1);
       else g.scale.x = Math.abs(g.scale.x || 1);
+
+      // Keep HP bars unflipped so segment order reads left-to-right.
+      const hpBar = g.userData.hpBar || null;
+      if (hpBar) hpBar.scale.x = e.flipX ? -1 : 1;
     }
     cleanupMap(enemies, enemyIds);
 
@@ -1535,10 +1806,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     lockGeo.dispose();
     projectileGeo.dispose();
     glowGeo.dispose();
+    hpBorderGeo.dispose();
     trailGeo.dispose();
     clutterGeo.dispose();
     coolantGeo.dispose();
     coolantCoreGeo.dispose();
+    coolantCanGeo.dispose();
+    coolantCapGeo.dispose();
+    coolantCoreCylGeo.dispose();
+    coolantSnowArmGeo.dispose();
     appleGeo.dispose();
     appleLeafGeo.dispose();
     appleStemGeo.dispose();
@@ -1546,6 +1822,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     powerCapsuleGeo.dispose();
     powerPrismGeo.dispose();
     powerShieldGeo.dispose();
+    powerFinGeo.dispose();
+    powerStripeGeo.dispose();
+    powerTripleBarrelGeo.dispose();
+    powerCrownSpikeGeo.dispose();
+    powerCrownBandGeo.dispose();
     trashBodyGeo.dispose();
     trashLidGeo.dispose();
     trashRidgeGeo.dispose();
@@ -1566,6 +1847,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogHeadGeo.dispose();
     watchdogBarrelGeo.dispose();
     stickyGeo.dispose();
+    floppyBodyGeo.dispose();
+    floppyLabelGeo.dispose();
+    floppyShutterGeo.dispose();
+    floppyHoleGeo.dispose();
+    floppyNotchGeo.dispose();
     empRingGeo.dispose();
     floorGeo.dispose();
 
@@ -1593,6 +1879,8 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     leafMat.dispose();
     coolantMat.dispose();
     coolantCoreMat.dispose();
+    coolantCapMat.dispose();
+    coolantSnowMat.dispose();
     powerRapidMat.dispose();
     powerTripleMat.dispose();
     powerGiantMat.dispose();
@@ -1616,6 +1904,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogHeadMat.dispose();
     watchdogBarrelMat.dispose();
     stickyMat.dispose();
+    floppyBodyMat.dispose();
+    floppyLabelMat.dispose();
+    floppyShutterMat.dispose();
+    floppyHoleMat.dispose();
+    hpBackMat.dispose();
+    hpEdgeMat.dispose();
     bgMat.dispose();
     shadowMat.dispose();
     empRing.material.dispose();
