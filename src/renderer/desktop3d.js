@@ -309,6 +309,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const folderTabGeo = makeRoundedExtrudeGeometry(40, 18, 10, 6);
   const folderSlotGeo = makeRoundedExtrudeGeometry(34, 18, 2, 6);
   const lockGeo = new THREE.BoxGeometry(12, 10, 3);
+  const wallBraceGeo = new THREE.BoxGeometry(2.2, 22, 1.6);
 
   const projectileGeo = new THREE.SphereGeometry(4, 12, 12);
   const glowGeo = new THREE.PlaneGeometry(1, 1);
@@ -340,12 +341,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const appleLeafGeo = new THREE.BoxGeometry(4, 2, 2);
   const appleStemGeo = new THREE.CylinderGeometry(1.2, 1.6, 6, 10);
   const appleHighlightGeo = new THREE.SphereGeometry(3.2, 12, 12);
+  const healPlusVertGeo = makeRoundedExtrudeGeometry(3.2, 10.2, 2.4, 1.2);
+  const healPlusHorizGeo = makeRoundedExtrudeGeometry(10.2, 3.2, 2.4, 1.2);
   const powerCapsuleGeo = new THREE.CapsuleGeometry(5, 10, 6, 12);
   const powerPrismGeo = makeRoundedExtrudeGeometry(14, 10, 6, 2);
   const powerShieldGeo = makeRoundedExtrudeGeometry(16, 18, 6, 6);
   const powerFinGeo = makeRoundedExtrudeGeometry(6, 4, 1.4, 1.2);
   const powerStripeGeo = new THREE.BoxGeometry(2.2, 12, 1.2);
   const powerTripleBarrelGeo = new THREE.CapsuleGeometry(2.6, 6.2, 4, 10);
+  const powerTripleHoleGeo = new THREE.CylinderGeometry(1.6, 1.6, 1.2, 14);
   const powerCrownSpikeGeo = new THREE.ConeGeometry(2.2, 5.5, 10);
   const powerCrownBandGeo = new THREE.TorusGeometry(6.5, 1.2, 10, 18);
 
@@ -370,12 +374,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const watchdogBaseGeo = new THREE.CylinderGeometry(10, 12, 10, 16);
   const watchdogHeadGeo = makeRoundedExtrudeGeometry(18, 12, 10, 4);
   const watchdogBarrelGeo = new THREE.CylinderGeometry(2, 2, 10, 10);
+  const watchdogLegGeo = new THREE.CylinderGeometry(1.1, 1.4, 11, 8);
+  const watchdogFootGeo = new THREE.CylinderGeometry(2.2, 2.2, 2.0, 10);
+  const watchdogEyeGeo = new THREE.SphereGeometry(2.4, 12, 12);
+  const watchdogAntennaGeo = new THREE.CylinderGeometry(0.8, 0.8, 9, 8);
+  const watchdogAntennaTipGeo = new THREE.SphereGeometry(1.4, 10, 10);
+  const watchdogPanelGeo = makeRoundedExtrudeGeometry(14, 6, 1.4, 2);
+  const watchdogMuzzleGeo = new THREE.CylinderGeometry(2.4, 2.4, 2.4, 12);
   const stickyGeo = makeRoundedExtrudeGeometry(16, 12, 3, 2);
   const floppyBodyGeo = makeRoundedExtrudeGeometry(20, 20, 4, 3);
   const floppyLabelGeo = makeRoundedExtrudeGeometry(14, 10, 1.6, 2);
   const floppyShutterGeo = makeRoundedExtrudeGeometry(16, 6, 1.6, 2);
   const floppyHoleGeo = makeRoundedExtrudeGeometry(8, 6, 1.2, 2);
   const floppyNotchGeo = new THREE.BoxGeometry(3.5, 3.5, 1.2);
+  const floppyLineGeo = new THREE.BoxGeometry(11, 0.7, 0.6);
 
   const empRingGeo = (() => {
     const inner = 18;
@@ -554,6 +566,13 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.7,
     metalness: 0.0,
   });
+  const healPlusMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#f4f4f4'),
+    roughness: 0.22,
+    metalness: 0.06,
+    emissive: pickColorHex('#ffd35a'),
+    emissiveIntensity: 0.18,
+  });
   const coolantMat = new THREE.MeshPhysicalMaterial({
     color: pickColorHex('#67d6ff'),
     roughness: 0.05,
@@ -728,6 +747,27 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.6,
     metalness: 0.2,
   });
+  const watchdogLegMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#2a2f3c'),
+    roughness: 0.85,
+    metalness: 0.12,
+  });
+  const watchdogEyeMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#c7f3ff'),
+    roughness: 0.18,
+    metalness: 0.05,
+    emissive: pickColorHex('#47c9ff'),
+    emissiveIntensity: 0.85,
+  });
+  const watchdogPanelMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#0b1020'),
+    roughness: 0.75,
+    metalness: 0.05,
+    emissive: pickColorHex('#67d6ff'),
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.9,
+  });
   const stickyMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#f7f0a6'),
     roughness: 0.65,
@@ -883,6 +923,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     appleStemMat,
     appleHighlightMat,
     leafMat,
+    healPlusMat,
     coolantMat,
     coolantCoreMat,
     coolantCapMat,
@@ -909,6 +950,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogBaseMat,
     watchdogHeadMat,
     watchdogBarrelMat,
+    watchdogLegMat,
+    watchdogEyeMat,
+    watchdogPanelMat,
     stickyMat,
     floppyBodyMat,
     floppyLabelMat,
@@ -931,15 +975,60 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const clutterAngle = new Map();
 
   function ensureWall(id) {
-    let m = walls.get(id);
-    if (m) return m;
-    m = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ color: wallBaseColor.clone(), roughness: 0.7, metalness: 0.0 }));
-    m.castShadow = !automationMode;
-    m.receiveShadow = false;
-    addBackfaceOutline(m, 1.08);
-    scene.add(m);
-    walls.set(id, m);
-    return m;
+    let g = walls.get(id);
+    if (g) return g;
+    g = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: wallBaseColor.clone(), roughness: 0.7, metalness: 0.0 });
+    const body = new THREE.Mesh(wallGeo, bodyMat);
+    body.castShadow = !automationMode;
+    body.receiveShadow = false;
+    addBackfaceOutline(body, 1.08);
+    g.userData.body = body;
+
+    // A small folder-tab detail so it reads as a "folder wall" instead of a generic block.
+    const tab = new THREE.Mesh(folderTabGeo, folderTabMat);
+    tab.castShadow = !automationMode;
+    tab.receiveShadow = false;
+    tab.scale.set(0.5, 0.5, 0.5);
+    tab.position.set(0, -14.0, 6.6);
+    addBackfaceOutline(tab, 1.05);
+    g.userData.tab = tab;
+
+    const slot = new THREE.Mesh(folderSlotGeo, folderSlotMat);
+    slot.castShadow = false;
+    slot.receiveShadow = false;
+    slot.scale.set(0.5, 0.5, 0.5);
+    slot.position.set(0, -14.0, 9.6);
+    g.userData.slot = slot;
+
+    const lock = new THREE.Mesh(lockGeo, lockMat);
+    lock.castShadow = !automationMode;
+    lock.receiveShadow = false;
+    lock.scale.set(0.75, 0.75, 0.75);
+    lock.position.set(0, 4.0, 8.6);
+    addBackfaceOutline(lock, 1.12);
+    g.userData.lock = lock;
+
+    // Metal braces add depth and silhouette.
+    const brace1 = new THREE.Mesh(wallBraceGeo, watchdogBarrelMat);
+    brace1.castShadow = !automationMode;
+    brace1.receiveShadow = false;
+    brace1.position.set(0, 2.0, 7.8);
+    brace1.rotation.z = 0.7;
+    addBackfaceOutline(brace1, 1.02);
+
+    const brace2 = new THREE.Mesh(wallBraceGeo, watchdogBarrelMat);
+    brace2.castShadow = !automationMode;
+    brace2.receiveShadow = false;
+    brace2.position.set(0, 2.0, 7.8);
+    brace2.rotation.z = -0.7;
+    addBackfaceOutline(brace2, 1.02);
+
+    g.add(body, tab, slot, lock, brace1, brace2);
+    scene.add(g);
+    walls.set(id, g);
+    return g;
   }
 
   function ensureTrash() {
@@ -979,6 +1068,36 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     let g = deployables.get(id);
     if (g) return g;
     g = new THREE.Group();
+
+    const legs = [];
+    const foots = [];
+    const legOffsets = [
+      [-8.0, -6.2],
+      [-8.0, 6.2],
+      [8.0, -6.2],
+      [8.0, 6.2],
+    ];
+    for (let i = 0; i < legOffsets.length; i += 1) {
+      const [lx, ly] = legOffsets[i];
+      const leg = new THREE.Mesh(watchdogLegGeo, watchdogLegMat);
+      leg.castShadow = !automationMode;
+      leg.rotation.x = Math.PI / 2;
+      leg.rotation.y = lx > 0 ? -0.38 : 0.38;
+      leg.rotation.z = ly > 0 ? 0.22 : -0.22;
+      leg.position.set(lx, ly, -6.8);
+      addBackfaceOutline(leg, 1.04);
+      legs.push(leg);
+
+      const foot = new THREE.Mesh(watchdogFootGeo, watchdogBarrelMat);
+      foot.castShadow = !automationMode;
+      foot.rotation.x = Math.PI / 2;
+      foot.position.set(lx, ly, -11.4);
+      addBackfaceOutline(foot, 1.03);
+      foots.push(foot);
+
+      g.add(leg, foot);
+    }
+
     const base = new THREE.Mesh(watchdogBaseGeo, watchdogBaseMat);
     base.castShadow = !automationMode;
     addBackfaceOutline(base, 1.08);
@@ -991,13 +1110,57 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     barrel.rotation.z = Math.PI / 2;
     barrel.position.set(9, 0, 10);
     addBackfaceOutline(barrel, 1.08);
-    const muzzleGlow = addGlowPlane(g, glowCyanMat, 18, -4);
-    muzzleGlow.position.set(16, 0, 10);
+
+    const muzzle = new THREE.Mesh(watchdogMuzzleGeo, watchdogBarrelMat);
+    muzzle.castShadow = !automationMode;
+    muzzle.rotation.z = Math.PI / 2;
+    muzzle.position.set(15.2, 0, 10);
+    addBackfaceOutline(muzzle, 1.06);
+
+    const eye = new THREE.Mesh(watchdogEyeGeo, watchdogEyeMat);
+    eye.castShadow = false;
+    eye.position.set(5.8, -1.2, 14.0);
+    addBackfaceOutline(eye, 1.08);
+    const pupil = new THREE.Mesh(eyePupilGeo, pupilMat);
+    pupil.castShadow = false;
+    pupil.position.set(7.4, -1.2, 15.4);
+    pupil.scale.set(0.8, 0.8, 0.8);
+
+    const panel = new THREE.Mesh(watchdogPanelGeo, watchdogPanelMat);
+    panel.castShadow = false;
+    panel.position.set(-4.5, 3.2, 14.2);
+    panel.rotation.z = -0.18;
+    addBackfaceOutline(panel, 1.03);
+
+    const antenna = new THREE.Mesh(watchdogAntennaGeo, lockMat);
+    antenna.castShadow = !automationMode;
+    antenna.rotation.x = Math.PI / 2;
+    antenna.position.set(-8.6, -4.2, 13.6);
+    const antennaTip = new THREE.Mesh(watchdogAntennaTipGeo, watchdogEyeMat);
+    antennaTip.castShadow = false;
+    antennaTip.position.set(-8.6, -4.2, 18.8);
+
+    // Clone glow material so we can animate it per-instance.
+    const mgMat = glowCyanMat.clone();
+    mgMat.userData.fixedOpacity = true;
+    mgMat.opacity = 0.0;
+    mgMat.transparent = true;
+    const muzzleGlow = addGlowPlane(g, mgMat, 22, -4);
+    muzzleGlow.position.set(18.2, 0, 10);
     muzzleGlow.visible = false;
     g.userData.muzzleGlow = muzzleGlow;
+    g.userData.legs = legs;
+    g.userData.foots = foots;
+
     g.add(base);
     g.add(head);
     g.add(barrel);
+    g.add(muzzle);
+    g.add(eye);
+    g.add(pupil);
+    g.add(panel);
+    g.add(antenna);
+    g.add(antennaTip);
     scene.add(g);
     deployables.set(id, g);
     return g;
@@ -1027,12 +1190,23 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     hole.castShadow = false;
     hole.position.set(0, -6.5, 4.2);
 
+    const mkLabelLine = (x, y, sx = 1) => {
+      const l = new THREE.Mesh(floppyLineGeo, watchdogBarrelMat);
+      l.castShadow = false;
+      l.position.set(x, y, 4.35);
+      l.scale.set(sx, 1, 1);
+      return l;
+    };
+    const line1 = mkLabelLine(-1.0, 0.8, 0.95);
+    const line2 = mkLabelLine(-2.4, 2.6, 0.7);
+    const line3 = mkLabelLine(-1.8, 4.3, 0.82);
+
     // Small accent notch for silhouette.
     const notch = new THREE.Mesh(floppyNotchGeo, lockMat);
     notch.castShadow = !automationMode;
     notch.position.set(7.2, -7.2, 2.6);
 
-    g.add(body, label, shutter, hole, notch);
+    g.add(body, label, shutter, hole, notch, line1, line2, line3);
     scene.add(g);
     deployables.set(id, g);
     return g;
@@ -1263,9 +1437,19 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       leaf.rotation.z = -0.6;
       leaf.rotation.y = 0.5;
 
+      // Extra readability: a small "health plus" badge on the apple.
+      const plusV = new THREE.Mesh(healPlusVertGeo, healPlusMat);
+      plusV.castShadow = !automationMode;
+      plusV.position.set(0, 0.6, 8.8);
+      addBackfaceOutline(plusV, 1.08);
+      const plusH = new THREE.Mesh(healPlusHorizGeo, healPlusMat);
+      plusH.castShadow = !automationMode;
+      plusH.position.set(0, 0.6, 8.8);
+      addBackfaceOutline(plusH, 1.08);
+
       addGlowPlane(g, glowRedMat, 34, -14);
 
-      g.add(body, highlight, stem, leaf);
+      g.add(body, highlight, stem, leaf, plusV, plusH);
     } else if (type === 'coolant') {
       // Coolant: read as a small cryo canister (more recognizable than a plain cube).
       const can = new THREE.Mesh(coolantCanGeo, coolantMat);
@@ -1318,8 +1502,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       const stripe2 = stripe1.clone();
       stripe2.position.x = 2.2;
 
+      const tip = new THREE.Mesh(powerCrownSpikeGeo, watchdogBarrelMat);
+      tip.castShadow = !automationMode;
+      tip.rotation.z = -Math.PI / 2;
+      tip.position.set(12.2, 0, 3.2);
+      tip.scale.set(0.72, 0.72, 0.72);
+      addBackfaceOutline(tip, 1.03);
+
       addGlowPlane(g, glowOrangeMat, 44, -14);
-      g.add(cap, finL, finR, stripe1, stripe2);
+      g.add(cap, finL, finR, stripe1, stripe2, tip);
     } else if (type === 'powerup-triple') {
       // Triple: cluster of three mini-barrels.
       const base = new THREE.Mesh(powerPrismGeo, powerTripleMat);
@@ -1338,8 +1529,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       const b2 = mkBarrel(5.4, -2.0);
       const b3 = mkBarrel(0.0, 6.0);
 
+      const mkHole = (x, y) => {
+        const h = new THREE.Mesh(powerTripleHoleGeo, watchdogBarrelMat);
+        h.castShadow = false;
+        h.rotation.z = Math.PI / 2;
+        h.position.set(x + 5.8, y, 3.6);
+        addBackfaceOutline(h, 1.02);
+        return h;
+      };
+      const h1 = mkHole(-5.4, -2.0);
+      const h2 = mkHole(5.4, -2.0);
+      const h3 = mkHole(0.0, 6.0);
+
       addGlowPlane(g, glowBlueMat, 46, -14);
-      g.add(base, b1, b2, b3);
+      g.add(base, b1, b2, b3, h1, h2, h3);
     } else if (type === 'powerup-giant') {
       // Giant: shield + crown to read as "power".
       const shield = new THREE.Mesh(powerShieldGeo, powerGiantMat);
@@ -1419,7 +1622,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     }
   }
 
-  function setCursorStyleFromState(player, mousePos) {
+  function setCursorStyleFromState(player, mousePos, aimAngleOverride) {
     const isOverheated = player?.cpuHeat >= 90;
     const isSlowed = player?.ramPressure >= 60;
     const isGiant = player?.powerUp === 'giant';
@@ -1455,7 +1658,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
     const dx = (mousePos?.x ?? width / 2) - (player?.x ?? width / 2);
     const dy = (mousePos?.y ?? height / 2) - (player?.y ?? height / 2);
-    const angle = Math.atan2(dy, dx);
+    const angle = Number.isFinite(aimAngleOverride) ? aimAngleOverride : Math.atan2(dy, dx);
     cursor.rotation.z = angle + Math.PI / 2;
   }
 
@@ -1465,8 +1668,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     // Static positions.
     const player = state.player || { x: width / 2, y: height / 2 };
     const mousePos = state.mousePos || { x: width / 2, y: height / 2 };
+    const aimAngle = state.aim && Number.isFinite(state.aim.angle) ? state.aim.angle : null;
 
-    setCursorStyleFromState(player, mousePos);
+    setCursorStyleFromState(player, mousePos, aimAngle);
     cursor.position.set(player.x, player.y, 24);
 
     systemFolder.position.set(width / 2, height / 2 + 40, 0);
@@ -1506,19 +1710,21 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     for (const w of state.folderWalls || []) {
       const id = w.id;
       wallIds.add(id);
-      const m = ensureWall(id);
+      const g = ensureWall(id);
       const centerX = w.x + 12;
       const centerY = w.y + 12;
-      m.position.set(centerX, centerY, 0);
+      g.position.set(centerX, centerY, 0);
 
       const hp = Number.isFinite(w.hp) ? w.hp : 0;
       const dmg = hp > 3 ? 0 : hp > 2 ? 1 : hp > 1 ? 2 : 3;
       const brightness = dmg === 0 ? 1.0 : dmg === 1 ? 0.85 : dmg === 2 ? 0.7 : 0.55;
-      m.material.color.copy(wallBaseColor).multiplyScalar(brightness);
+      const body = g.userData.body || null;
+      if (body && body.material && body.material.color) {
+        body.material.color.copy(wallBaseColor).multiplyScalar(brightness);
+      }
 
       const thin = hp <= 1;
-      m.scale.set(1, 1, thin ? 0.7 : 1);
-      m.castShadow = true;
+      g.scale.set(1, 1, thin ? 0.7 : 1);
     }
     cleanupMap(walls, wallIds);
 
@@ -1539,7 +1745,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         if (mg) {
           const pulse = 0.4 + 0.6 * Math.max(0, Math.sin((state.totalTime || 0) * 10 + id * 3));
           mg.visible = true;
-          mg.material.opacity = (mg.material.userData && mg.material.userData.fixedOpacity) ? mg.material.opacity : mg.material.opacity;
+          if (mg.material && 'opacity' in mg.material) {
+            mg.material.opacity = (automationMode ? 0.35 : 0.12) + pulse * (automationMode ? 0.25 : 0.38);
+          }
           mg.scale.set(1 + pulse * 0.25, 1 + pulse * 0.25, 1);
         }
       } else if (d.type === 'sticky') {
@@ -1657,8 +1865,8 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         const maxHp = Number.isFinite(e.maxHp) ? Math.max(1, e.maxHp) : maxSegs;
         const hp = Number.isFinite(e.hp) ? Math.max(0, Math.min(maxHp, e.hp)) : 0;
         const full = hp >= maxHp;
-        const onOpacity = full ? 0.55 : 0.95;
-        const offOpacity = full ? 0.14 : 0.22;
+        const onOpacity = full ? 0.78 : 0.98;
+        const offOpacity = full ? 0.18 : 0.26;
         for (let i = 0; i < segs.length; i += 1) {
           const seg = segs[i];
           if (!seg || !seg.material || !seg.material.color) continue;
@@ -1804,6 +2012,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     folderTabGeo.dispose();
     folderSlotGeo.dispose();
     lockGeo.dispose();
+    wallBraceGeo.dispose();
     projectileGeo.dispose();
     glowGeo.dispose();
     hpBorderGeo.dispose();
@@ -1819,12 +2028,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     appleLeafGeo.dispose();
     appleStemGeo.dispose();
     appleHighlightGeo.dispose();
+    healPlusVertGeo.dispose();
+    healPlusHorizGeo.dispose();
     powerCapsuleGeo.dispose();
     powerPrismGeo.dispose();
     powerShieldGeo.dispose();
     powerFinGeo.dispose();
     powerStripeGeo.dispose();
     powerTripleBarrelGeo.dispose();
+    powerTripleHoleGeo.dispose();
     powerCrownSpikeGeo.dispose();
     powerCrownBandGeo.dispose();
     trashBodyGeo.dispose();
@@ -1846,12 +2058,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogBaseGeo.dispose();
     watchdogHeadGeo.dispose();
     watchdogBarrelGeo.dispose();
+    watchdogLegGeo.dispose();
+    watchdogFootGeo.dispose();
+    watchdogEyeGeo.dispose();
+    watchdogAntennaGeo.dispose();
+    watchdogAntennaTipGeo.dispose();
+    watchdogPanelGeo.dispose();
+    watchdogMuzzleGeo.dispose();
     stickyGeo.dispose();
     floppyBodyGeo.dispose();
     floppyLabelGeo.dispose();
     floppyShutterGeo.dispose();
     floppyHoleGeo.dispose();
     floppyNotchGeo.dispose();
+    floppyLineGeo.dispose();
     empRingGeo.dispose();
     floorGeo.dispose();
 
@@ -1877,6 +2097,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     appleStemMat.dispose();
     appleHighlightMat.dispose();
     leafMat.dispose();
+    healPlusMat.dispose();
     coolantMat.dispose();
     coolantCoreMat.dispose();
     coolantCapMat.dispose();
@@ -1903,6 +2124,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     watchdogBaseMat.dispose();
     watchdogHeadMat.dispose();
     watchdogBarrelMat.dispose();
+    watchdogLegMat.dispose();
+    watchdogEyeMat.dispose();
+    watchdogPanelMat.dispose();
     stickyMat.dispose();
     floppyBodyMat.dispose();
     floppyLabelMat.dispose();

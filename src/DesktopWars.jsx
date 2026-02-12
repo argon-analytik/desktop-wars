@@ -1077,17 +1077,18 @@ export default function DesktopWars() {
 		              cursor: gameState === GAME_STATES.PLAYING ? 'none' : 'default',
 		            }}
 		          >
-                {useWebGL ? (
-                  <ThreeScreen
-                    state={{
-                      mode: gameState,
-                      totalTime,
-                      player,
-                      enemies,
-                      pickups,
-                      folderWalls,
-                      deployables,
-                      clutter,
+	                {useWebGL ? (
+	                  <ThreeScreen
+	                    state={{
+	                      mode: gameState,
+	                      totalTime,
+	                      player,
+	                      aim: { dirX: aimRef.current.x, dirY: aimRef.current.y, angle: aimRef.current.angle },
+	                      enemies,
+	                      pickups,
+	                      folderWalls,
+	                      deployables,
+	                      clutter,
                       projectiles,
                       systemFolderHP,
                       empExplosion,
@@ -1262,27 +1263,42 @@ export default function DesktopWars() {
 	                  boxShadow: player.empCharge >= 100 ? '0 0 6px #4af' : 'none'
 	                }} />
 	                {/* CPU Heat indicator (chip + segmented bar) */}
-	                <div
-	                  title={`CPU Heat: ${Math.floor(player.cpuHeat)}%`}
-	                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-	                >
-	                  <CpuIcon size={14} hot={player.cpuHeat >= 90} />
-	                  <div
-	                    style={{
-	                      width: 42,
-	                      height: 10,
+		                <div
+		                  title={`CPU Heat: ${Math.floor(player.cpuHeat)}%`}
+		                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+		                >
+		                  <CpuIcon size={16} hot={player.cpuHeat >= 90} />
+		                  <div
+		                    style={{
+		                      width: 42,
+		                      height: 10,
 	                      background: 'linear-gradient(180deg, #f4f4f4 0%, #d7d7d7 100%)',
 	                      position: 'relative',
 	                      borderRadius: 3,
 	                      border: '1px solid #666',
 	                      overflow: 'hidden',
 	                      boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.25)',
-	                    }}
-	                  >
-	                    <div
-	                      style={{
-	                        width: `${player.cpuHeat}%`,
-	                        height: '100%',
+		                      }}
+		                    >
+		                      <div
+		                        style={{
+		                          position: 'absolute',
+		                          left: 3,
+		                          top: 1,
+		                          fontSize: 6,
+		                          fontFamily: 'monospace',
+		                          color: 'rgba(11,16,32,0.55)',
+		                          textShadow: '0 1px 0 rgba(255,255,255,0.35)',
+		                          letterSpacing: 0.3,
+		                          pointerEvents: 'none',
+		                        }}
+		                      >
+		                        CPU
+		                      </div>
+		                      <div
+		                        style={{
+		                          width: `${player.cpuHeat}%`,
+		                          height: '100%',
 	                        background:
 	                          player.cpuHeat >= 90
 	                            ? 'linear-gradient(90deg, #ff9a3c 0%, #ff4d4d 60%, #ff4d4d 100%)'
@@ -1306,27 +1322,42 @@ export default function DesktopWars() {
 	                  </div>
 	                </div>
 	                {/* RAM pressure indicator (stick + segmented bar) */}
-	                <div
-	                  title={`RAM Pressure: ${Math.floor(player.ramPressure)}%`}
-	                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-	                >
-	                  <RamIcon size={14} high={player.ramPressure >= 80} />
-	                  <div
-	                    style={{
-	                      width: 42,
-	                      height: 10,
+		                <div
+		                  title={`RAM Pressure: ${Math.floor(player.ramPressure)}%`}
+		                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+		                >
+		                  <RamIcon size={16} high={player.ramPressure >= 80} />
+		                  <div
+		                    style={{
+		                      width: 42,
+		                      height: 10,
 	                      background: 'linear-gradient(180deg, #f4f4f4 0%, #d7d7d7 100%)',
 	                      position: 'relative',
 	                      borderRadius: 3,
 	                      border: '1px solid #666',
 	                      overflow: 'hidden',
 	                      boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.25)',
-	                    }}
-	                  >
-	                    <div
-	                      style={{
-	                        width: `${player.ramPressure}%`,
-	                        height: '100%',
+		                      }}
+		                    >
+		                      <div
+		                        style={{
+		                          position: 'absolute',
+		                          left: 3,
+		                          top: 1,
+		                          fontSize: 6,
+		                          fontFamily: 'monospace',
+		                          color: 'rgba(11,16,32,0.55)',
+		                          textShadow: '0 1px 0 rgba(255,255,255,0.35)',
+		                          letterSpacing: 0.3,
+		                          pointerEvents: 'none',
+		                        }}
+		                      >
+		                        RAM
+		                      </div>
+		                      <div
+		                        style={{
+		                          width: `${player.ramPressure}%`,
+		                          height: '100%',
 	                        background:
 	                          player.ramPressure > 70
 	                            ? 'linear-gradient(90deg, #ffd35a 0%, #ff4d4d 80%, #ff4d4d 100%)'
@@ -1636,116 +1667,125 @@ export default function DesktopWars() {
             </div>
 
 	            {/* Monitor bezel info */}
-	            <div
-	              style={{
-	                position: 'absolute',
-	                left: screenLeft + screenWidth + 52,
-	                top: screenTop + 10,
-	                width: Math.max(0, monitorWidth - (screenLeft + screenWidth) - 68),
-	                height: screenHeight - 20,
-	                padding: 12,
-	                boxSizing: 'border-box',
-	                color: '#fff',
-	                fontSize: 7,
-	                lineHeight: 1.8,
-	                background: 'transparent',
-	                border: 'none',
-	                zIndex: 30,
-	                overflow: 'hidden',
+		            <div
+		              style={{
+		                position: 'absolute',
+		                left: screenLeft + screenWidth + 52,
+		                top: screenTop + 4,
+		                width: Math.max(0, monitorWidth - (screenLeft + screenWidth) - 68),
+		                height: screenHeight - 8,
+			                padding: 10,
+			                boxSizing: 'border-box',
+			                color: '#fff',
+			                fontSize: 6.6,
+			                lineHeight: 1.6,
+		                background: 'transparent',
+		                border: 'none',
+		                zIndex: 30,
+		                overflow: 'hidden',
 	                pointerEvents: 'none',
 	                textShadow: '0 2px 10px rgba(0,0,0,0.9)',
 	              }}
 	            >
-	              <div style={{ fontSize: 9, marginBottom: 10, color: '#8af' }}>CONTROLS</div>
-	              <div style={{ marginBottom: 12 }}>
-	                <div>WASD / Arrows - Move</div>
-	                <div>Mouse - Aim</div>
-	                <div>Click - Shoot</div>
-	                <div>Right Click - EMP</div>
-	                <div>Shift - Dash</div>
-	                <div>Q/E - Popups</div>
-	                <div>Space - Pause</div>
-	                <div>F - Fullscreen</div>
-	              </div>
-
-		              <div style={{ fontSize: 9, marginBottom: 8, color: '#fa0' }}>ENEMIES</div>
-		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <RegiMiteIcon size={16} />
-		                  </span>
-		                  <span>Regi-Mite</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <GremlinIcon size={16} />
-		                  </span>
-		                  <span>Gremlin</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <SpyDotIcon size={16} />
-		                  </span>
-		                  <span>Spy-Dot</span>
-		                </div>
+		              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>CONTROLS</div>
+		              <div
+		                style={{
+		                  marginBottom: 10,
+		                  display: 'grid',
+		                  gridTemplateColumns: 'auto auto',
+		                  columnGap: 12,
+		                  rowGap: 2,
+		                  lineHeight: 1.55,
+		                }}
+		              >
+		                <div>WASD / Arrows - Move</div>
+		                <div>Click - Shoot</div>
+		                <div>Mouse - Aim</div>
+		                <div>Right Click - EMP</div>
+		                <div>Shift - Dash</div>
+		                <div>Space - Pause</div>
+		                <div>Q/E - Popups</div>
+		                <div>F - Fullscreen</div>
 		              </div>
 
-		              <div style={{ fontSize: 9, marginBottom: 8, color: '#5f5' }}>POWER-UPS</div>
-		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, lineHeight: 1.9 }}>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <AppleIcon size={16} />
-		                  </span>
-		                  <span>Heal</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <CoolantIcon size={16} />
-		                  </span>
-		                  <span>Coolant</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <PowerRapidIcon size={16} />
-		                  </span>
-		                  <span>Rapid</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <PowerTripleIcon size={16} />
-		                  </span>
-		                  <span>Triple</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <PowerGiantIcon size={16} />
-		                  </span>
-		                  <span>Giant</span>
-		                </div>
-		              </div>
+				              <div style={{ fontSize: 9, marginBottom: 6, color: '#fa0' }}>ENEMIES</div>
+				              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, lineHeight: 1.6 }}>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <RegiMiteIcon size={18} />
+			                  </span>
+			                  <span>Regi-Mite</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <GremlinIcon size={18} />
+			                  </span>
+			                  <span>Gremlin</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <SpyDotIcon size={18} />
+			                  </span>
+			                  <span>Spy-Dot</span>
+			                </div>
+			              </div>
 
-		              <div style={{ fontSize: 9, marginBottom: 8, color: '#8af' }}>DEPLOYABLES</div>
-		              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.9 }}>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <FolderWallIcon size={16} />
-		                  </span>
-		                  <span>Wall</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <WatchdogIcon size={16} />
-		                  </span>
-		                  <span>Watchdog</span>
-		                </div>
-		                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-		                  <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
-		                    <FloppyDiskIcon size={16} />
-		                  </span>
-		                  <span>Floppy Disk</span>
-		                </div>
-		              </div>
-		            </div>
+				              <div style={{ fontSize: 9, marginBottom: 6, color: '#5f5' }}>POWER-UPS</div>
+				              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, lineHeight: 1.6 }}>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <AppleIcon size={18} />
+			                  </span>
+			                  <span>Heal</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <CoolantIcon size={18} />
+			                  </span>
+			                  <span>Coolant</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <PowerRapidIcon size={18} />
+			                  </span>
+			                  <span>Rapid</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <PowerTripleIcon size={18} />
+			                  </span>
+			                  <span>Triple</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <PowerGiantIcon size={18} />
+			                  </span>
+			                  <span>Giant</span>
+			                </div>
+			              </div>
+
+				              <div style={{ fontSize: 9, marginBottom: 6, color: '#8af' }}>DEPLOYABLES</div>
+				              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1.6 }}>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <FolderWallIcon size={18} />
+			                  </span>
+			                  <span>Wall</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <WatchdogIcon size={18} />
+			                  </span>
+			                  <span>Watchdog</span>
+			                </div>
+			                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+			                  <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }}>
+			                    <FloppyDiskIcon size={18} />
+			                  </span>
+			                  <span>Floppy Disk</span>
+			                </div>
+			              </div>
+			            </div>
 
 	            {/* Monitor overlay (transparent hole) */}
 	            <Sprite

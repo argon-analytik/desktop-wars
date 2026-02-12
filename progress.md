@@ -28,3 +28,9 @@ Notizen
 - Pickups/Powerups: Modelle detaillierter (Coolant-Canister + Snowflake, Rapid mit Fins/Stripes, Triple als 3-Barrel-Cluster, Giant mit Crown).
 - UI: CPU/RAM Anzeige in der Menueleiste als Chip/Stick + segmentierte Meter; rechte Sidebar-Icons durch detaillierte SVGs ersetzt (matcht In-Game Look).
 - Docs: README an neue Trash-Mechanik + Deployable-Name angepasst.
+
+Weitere Polish (2026-02-11 spaet)
+- Aim-Deadzone bis in den WebGL-Renderer durchgereicht (`state.aim.angle`), damit sich das Cursor-"Raumschiff" nicht ruckelig um die eigene Achse dreht, wenn die Maus im Zentrum steht.
+- Pickups: Apple mit zusaetzlichem Plus-Badge fuer bessere Lesbarkeit; Rapid/Triple/Deployables weiter detailliert.
+- Deployables (WebGL): Watchdog mit mehr Teilen (Beine/Fuesse, Linse, Panel, Antenne, Muzzle) + gepulster Muzzle-Glow; Folder-Walls als Gruppe (Tab/Slot/Lock/Braces) statt flachem Block.
+- Sidebar: Layout komprimiert (2-spaltige Controls) und Deployables-Liste so angepasst, dass "Floppy Disk" sichtbar bleibt; Icons groesser und kontrastreicher.
