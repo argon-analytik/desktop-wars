@@ -25,6 +25,13 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 - **5 collectible power-ups**
 - **CRT monitor aesthetic**
 
+### 3D Rewrite
+
+- The game world is now rendered with a default WebGL/Three.js pipeline.
+- The scene is over a fixed 2D coordinate space that matches the screen size (`640x480`) for reliable gameplay mapping.
+- World rendering is separated from UI overlays; popups, menu bars, and setup dialogs remain DOM-based for readability.
+- Fallback renderer remains available via `?renderer=dom`.
+
 ---
 
 ## Controls
@@ -47,9 +54,9 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 
 | Enemy | Behavior |
 |---|---|
-| **Regi-Mite** | Standard enemy (3 hits), targets the System Folder |
-| **Popup-Gremlin** | Fast and erratic (2 hits), bounces randomly |
-| **Spy-Dot** | Small tracker (5 hits), relentlessly chases the player |
+| **Regi-Mite** | Standard enemy with baseline durability (**2 HP**). Homes toward the System Folder. |
+| **Popup-Gremlin** | Fast and erratic (2 HP), bounces with random direction changes and folder-wall interactions. |
+| **Spy-Dot** | Smaller red tracker (**3 HP**) that follows the player directly and is harder to hit. |
 
 ---
 
@@ -61,7 +68,7 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 | Coolant | Instantly cools CPU by 60% |
 | Rapid Fire | Temporarily increases fire rate |
 | Triple Shot | Temporarily fires three projectiles per shot |
-| Giant Mode | Temporary invincibility, destroys enemies on contact. You cannot shoot during this mode. |
+| Giant Mode | Temporary invincibility; touching enemies destroys them immediately. You cannot shoot during this mode. |
 
 ---
 
@@ -73,12 +80,14 @@ The game is presented inside a **CRT monitor frame** with a clean retro UI and a
 - At **90%+ heat**, you **cannot shoot** due to overheating
 - Heat dissipates slowly over time
 - Collect **Coolant** for instant relief
+- HUD displays CPU heat as a segmented thermal bar; an overheat warning indicator activates above 90%.
 
 ### RAM Pressure
 
 - Enemy drops and clutter increase RAM usage
 - High RAM causes **movement slowdown** of up to 80%
 - Shoot the **Trash** to clear clutter (1 shot per clutter)
+- RAM pressure now also reduces speed in a visible status flow and appears in the HUD meter.
 
 ---
 
@@ -140,6 +149,24 @@ Open `index.html` (double click) and play.
 - Default: WebGL 3D renderer (Three.js) inside the CRT screen.
 - Fallback: DOM/sprite renderer when WebGL is unavailable.
 - Debug: add `?renderer=dom` to force the DOM renderer.
+- The render bridge is `ThreeScreen.jsx` and passes a stable snapshot contract including:
+  - `player`, `enemies`, `pickups`, `folderWalls`, `deployables`, `clutter`, `projectiles`
+  - `systemFolderHP`, `empExplosion`, `mousePos`, `mode`, `totalTime`
+
+### World Model Notes
+
+- Player cursor model is based on the original polygon path and includes status variants for hit, giant, overheated, and slowed states.
+- Center objective is rendered as a stylized hard drive assembly (housing, platter, arm, screws, status light).
+- Folder walls remain grouped rounded primitives to keep a readable defensive silhouette.
+- All enemies and pickups are distinct 3D compositions with readable silhouettes:
+  - Regi-Mite with articulated shell and eyes
+  - Popup-Gremlin with spiked form and core pulse
+  - Spy-Dot glossy orb with blink / tracking behavior
+  - Power-ups with stronger glow and unique geometry per type for field visibility
+- Enemy life bars are intentionally removed for a cleaner combat look.
+- Trash is rendered as a brighter neutral-gray 3D bin; DOM keeps the click target and clutter counter.
+- Clutter now uses layered paper meshes (sheets, tape, line detail) instead of flat cards.
+- Deployables are expanded with multi-part watchdog/floppy designs; clutter/wall behavior is unchanged.
 
 ### Automation Hooks (Testing)
 
@@ -147,6 +174,10 @@ For deterministic automation (e.g., Playwright), the game exposes:
 
 - `window.render_game_to_text(): string` returns a concise JSON snapshot of the current state.
 - `window.advanceTime(ms: number): Promise<void>` advances the simulation deterministically (used in webdriver mode).
+- `render_game_to_text` fields include:
+  - coordinate note (`coords`), `mode`, `wave`, `wave_timer_s`, `score`, `system_folder_hp`
+  - `player` (`x`, `y`, `hp`, `cpu_heat`, `ram_pressure`, `emp`, `power_up`)
+  - entity arrays for `enemies`, `pickups`, `projectiles`, `folder_walls`, `deployables`, `popups`
 
 ---
 
@@ -209,6 +240,9 @@ desktop-wars/
 - **Inline styles**, no CSS framework
 - Optional **sprite override** via `assets/sprites/` + `src/assets/manifest.js` (primarily for the DOM fallback renderer)
 - Font: “Press Start 2P” (loaded in `index.html`)
+- `render_game_to_text` and `advanceTime` are exposed on `window` when gameplay is running.
+- Game loop uses a stable `tick()` function with ref-based state snapshots to avoid restart on every setState.
+- Aim rotation uses a deadzone so shift-dash at center aim does not spin the cursor model.
 
 ---
 
@@ -218,9 +252,20 @@ desktop-wars/
 2. Shoot the trash to clear clutter and stay mobile
 3. Read popups carefully. Button positions are deceptive
 4. Use walls to funnel enemies into kill zones
-5. Deploy floppy disks as effective decoys
-6. Save EMP blasts for emergencies
-7. Collect coolant early to maintain sustained fire
+5. Deploy watchdog or floppy disks as static lane tools
+6. Use the trash badge as a direct signal for remaining clutter and clear it with repeated hits
+7. Save EMP blasts for emergencies
+8. Watch CPU and RAM indicators; they are the only reliable feedback for stable movement and fire rate
+
+## UI Polish Notes
+
+- Menu bar now uses dedicated CPU and RAM chip-and-bar indicators with explicit overload warnings (`OVERHEAT`, `SLOW`) and iconography.
+- Right column legend icons mirror in-game object styles for quick recognition.
+- Crosshair overlay stays minimal and functional, but power-up state is shown as compact text tags (`RAPID`, `TRIPLE`, `GIANT`) for automation-safe detection.
+- `Enter` is supported for:
+  - Starting from MENU,
+  - Starting wave from SETUP,
+  - Restart from GAMEOVER/WIN.
 
 ---
 

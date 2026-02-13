@@ -792,7 +792,7 @@ export default function DesktopWars() {
       const enemySpeed = 0.5 + waveSnap * 0.15 + Math.random() * 0.2;
       setEnemies((prev) => [
         ...prev,
-        { id: Math.random(), type: 'regi-mite', x: spawnX, y: spawnY, hp: 3, maxHp: 3, size: 64, flipX: side === 0, speed: enemySpeed, frame: 0, stunned: 0 },
+        { id: Math.random(), type: 'regi-mite', x: spawnX, y: spawnY, hp: 2, maxHp: 2, size: 64, flipX: side === 0, speed: enemySpeed, frame: 0, stunned: 0 },
       ]);
 
 	      if (waveSnap >= 2 && Math.random() < 0.25) {
@@ -810,7 +810,7 @@ export default function DesktopWars() {
 	      }
 
 	      if (waveSnap >= 2 && Math.random() < 0.15) {
-	        const spySize = 40;
+	        const spySize = 28;
 	        const sSide = Math.floor(Math.random() * 3);
 	        let sX;
 	        let sY;
@@ -818,7 +818,7 @@ export default function DesktopWars() {
         else if (sSide === 1) { sX = SCREEN_WIDTH + spySize / 2; sY = MENUBAR_HEIGHT + spySize / 2 + Math.random() * (SCREEN_HEIGHT - MENUBAR_HEIGHT - spySize); }
         else { sX = spySize / 2 + Math.random() * (SCREEN_WIDTH - spySize); sY = SCREEN_HEIGHT + spySize / 2; }
 
-	        setEnemies((prev) => [...prev, { id: Math.random(), type: 'spy-dot', x: sX, y: sY, hp: 5, maxHp: 5, size: spySize, speed: 0.42, frame: 0, stunned: 0 }]);
+	        setEnemies((prev) => [...prev, { id: Math.random(), type: 'spy-dot', x: sX, y: sY, hp: 3, maxHp: 3, size: spySize, speed: 0.42, frame: 0, stunned: 0 }]);
 	      }
 
       if (waveSnap === 3 && Math.random() < 0.3) {
@@ -837,8 +837,8 @@ export default function DesktopWars() {
 	            type: extraType,
             x: eX,
             y: eY,
-            hp: extraType === 'regi-mite' ? 3 : 2,
-            maxHp: extraType === 'regi-mite' ? 3 : 2,
+            hp: extraType === 'regi-mite' ? 2 : 2,
+            maxHp: extraType === 'regi-mite' ? 2 : 2,
 	            size: extraType === 'regi-mite' ? 64 : 36,
 	            flipX: eSide === 0,
 	            speed: extraType === 'popup-gremlin' ? 2.2 + Math.random() * 0.9 : 0.8 + Math.random() * 0.4,

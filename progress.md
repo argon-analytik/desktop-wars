@@ -34,3 +34,30 @@ Weitere Polish (2026-02-11 spaet)
 - Pickups: Apple mit zusaetzlichem Plus-Badge fuer bessere Lesbarkeit; Rapid/Triple/Deployables weiter detailliert.
 - Deployables (WebGL): Watchdog mit mehr Teilen (Beine/Fuesse, Linse, Panel, Antenne, Muzzle) + gepulster Muzzle-Glow; Folder-Walls als Gruppe (Tab/Slot/Lock/Braces) statt flachem Block.
 - Sidebar: Layout komprimiert (2-spaltige Controls) und Deployables-Liste so angepasst, dass "Floppy Disk" sichtbar bleibt; Icons groesser und kontrastreicher.
+
+2026-02-12
+- Polished user-request visual clarity pass:
+  - Power-ups and pickup forms in der 3D-Welt deutlich lesbarer gemacht (zusatzliche Geometrien, Kontraste, kleine Labels).
+  - CPU/RAM Darstellungen in der Menüleiste stark aufgewertet (Chip-/Stab-Metapher, textliche Statuslabels OVERHEAT/SLOW).
+  - Rechtsseitige Legend-Icons detaillierter und mit höherem Kontrast gestaltet.
+  - Deployables mit besser erkennbaren Details für Watchdog und Floppy Disk erweitert.
+  - Gegner- und Pickup-Performance angepasst:
+    - Regi-Mite: 3 Treffer zum Kippen.
+    - Gremlin: höhere Laufgeschwindigkeit.
+    - Spy-Dot: kleineres Hitbox-Scale und 5 Treffer.
+  - Giant-Powerup wirkt als Nahkontakt-Instakill auf Gegner.
+  - Papierkorb-Verhalten geändert: ein Treffer reduziert genau ein Clutter-Element, damit Badge-Zahl direkt miterfassbar ist.
+  - Aim-Rotation verbessert: Deadzone vor `Shift`-Dash verhindert Mikrobewegung beim Ziel auf Spielerzentrum.
+
+2026-02-12 (follow-up pass)
+- Gameplay reset per request:
+  - Regi-Mite wieder auf 2 HP (statt 3).
+  - Spy-Dot wieder auf 3 HP (statt 5) und nochmal kleiner skaliert.
+  - Visuelle Lebensanzeigen bei Gegnern entfernt (DOM + WebGL).
+- Visual polish:
+  - Center objective von folder/tasche-artigem Look auf HDD-Look umgestellt (Platter, Arm, LED, Schrauben).
+  - Papierkorb heller und grauer gemacht, zusaetzliche Details (Rim, Innenraum, Pedal, Slots) fuer bessere Lesbarkeit auf blauem Hintergrund.
+  - Clutter als mehrlagiges Papier-Set mit Linien/Tape/Fold modelliert (statt einfacher flacher Karte).
+  - Power-up Glows verstaerkt und gepulst, damit sie auf dem Spielfeld besser auffallen.
+- Dokumentation:
+  - README angepasst (Enemy-HP-Werte, HDD-Beschreibung, Trash/Clutter/Power-up-Glow Updates).

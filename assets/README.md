@@ -3,10 +3,14 @@
 Lege deine eigenen Sprites unter `assets/sprites/` ab und passe bei Bedarf die Pfade in `src/assets/manifest.js` an.
 
 - Empfohlen: Pixel-Art in PNG (mit Transparenz)
-- Rendering ist standardmäßig `image-rendering: pixelated`
-- Fehlende Sprites fallen automatisch auf die eingebauten Vektor-Defaults (SVG) zurück
+- Rendering ist standardmäßig `image-rendering: pixelated` nur im DOM-Fallback/Debug
+- Fehlende Sprites fallen automatisch auf die eingebauten SVG/3D-Fallbacks zurück
 - Standard-Rendering: WebGL/3D (Three.js); Welt-Sprites sind optional
 - Sprites werden vor allem für UI-Icons und den DOM-Fallback-Renderer genutzt
+
+Hinweis:
+- `assets/` enthält weiterhin Referenzen für den DOM/Fallback-Pfad und das CRT-Hintergrund-Overlay.
+- Die eigentliche Welt wird primär über Vector-/3D-Modelle gezeichnet.
 
 Spezial:
 

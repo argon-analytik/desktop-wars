@@ -26,7 +26,7 @@ export default function Enemy({ type, x, y, size, stunned, isHit, frame, flipX =
 
   const safeMaxHp = Number.isFinite(maxHp) ? Math.max(1, Math.min(8, Math.round(maxHp))) : 0;
   const safeHp = Number.isFinite(hp) ? Math.max(0, Math.min(safeMaxHp, Math.round(hp))) : 0;
-  const showHp = safeMaxHp > 1;
+  const showHp = false;
   const hpColor = type === 'regi-mite' ? '#ffd35a' : type === 'popup-gremlin' ? '#ff4da6' : '#ff3b3b';
 
   if (type === 'regi-mite') {

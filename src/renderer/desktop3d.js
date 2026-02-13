@@ -310,27 +310,25 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   const folderSlotGeo = makeRoundedExtrudeGeometry(34, 18, 2, 6);
   const lockGeo = new THREE.BoxGeometry(12, 10, 3);
   const wallBraceGeo = new THREE.BoxGeometry(2.2, 22, 1.6);
+  const hddBaseGeo = makeRoundedExtrudeGeometry(62, 46, 10, 5.5);
+  const hddTopGeo = makeRoundedExtrudeGeometry(56, 40, 2.8, 4.5);
+  const hddPlatterGeo = new THREE.CylinderGeometry(13.2, 13.2, 1.8, 30);
+  const hddHubGeo = new THREE.CylinderGeometry(3.2, 3.2, 2.4, 18);
+  const hddArmGeo = new THREE.BoxGeometry(18, 3, 1.5);
+  const hddHeadGeo = new THREE.BoxGeometry(4.8, 2.5, 1.8);
+  const hddScrewGeo = new THREE.CylinderGeometry(1, 1, 0.9, 10);
+  const hddVentGeo = new THREE.BoxGeometry(7, 1.1, 0.6);
 
   const projectileGeo = new THREE.SphereGeometry(4, 12, 12);
   const glowGeo = new THREE.PlaneGeometry(1, 1);
-  const hpBorderGeo = (() => {
-    const geo = new THREE.BufferGeometry();
-    const verts = new Float32Array([
-      -0.5, -0.5, 0,
-       0.5, -0.5, 0,
-       0.5,  0.5, 0,
-      -0.5,  0.5, 0,
-    ]);
-    // Line segments: 0-1, 1-2, 2-3, 3-0
-    const idx = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0]);
-    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-    geo.setIndex(new THREE.BufferAttribute(idx, 1));
-    return geo;
-  })();
   const trailGeo = new THREE.PlaneGeometry(26, 6);
   // Trail extends behind the projectile in +x direction (after rotation).
   trailGeo.translate(-13, 0, 0);
-  const clutterGeo = new THREE.PlaneGeometry(16, 12);
+  const clutterSheetGeo = makeRoundedExtrudeGeometry(16, 12, 0.95, 1.2);
+  const clutterBackSheetGeo = makeRoundedExtrudeGeometry(15, 11, 0.8, 1.0);
+  const clutterLineGeo = new THREE.BoxGeometry(8, 0.72, 0.26);
+  const clutterTapeGeo = makeRoundedExtrudeGeometry(5.4, 2.6, 0.36, 0.65);
+  const clutterFoldGeo = new THREE.BoxGeometry(3.2, 3.2, 0.35);
   const coolantGeo = makeRoundedExtrudeGeometry(14, 14, 14, 3);
   const coolantCoreGeo = new THREE.BoxGeometry(8, 8, 8);
   const coolantCanGeo = new THREE.CylinderGeometry(7, 7, 16, 18, 1, false);
@@ -355,7 +353,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
   const trashBodyGeo = new THREE.CylinderGeometry(12, 10, 22, 18, 1, false);
   const trashLidGeo = new THREE.CylinderGeometry(13, 13, 4, 18, 1, false);
+  const trashInnerGeo = new THREE.CylinderGeometry(9.3, 8.0, 17, 18, 1, true);
+  const trashRimGeo = new THREE.TorusGeometry(10.8, 0.9, 10, 24);
+  const trashPedalGeo = new THREE.BoxGeometry(7, 1.8, 3.2);
   const trashRidgeGeo = new THREE.BoxGeometry(1.4, 18, 14);
+  const trashSlotGeo = new THREE.BoxGeometry(1.1, 10, 1.0);
   const trashHandleGeo = new THREE.TorusGeometry(7, 1.1, 10, 22);
 
   const regiBodyGeo = makeRoundedExtrudeGeometry(42, 28, 12, 6);
@@ -421,6 +423,35 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     metalness: 0.0,
     transparent: true,
     opacity: 0.85,
+  });
+  const hddBaseMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#8b939f'),
+    roughness: 0.5,
+    metalness: 0.25,
+  });
+  const hddTopMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#d6dbe3'),
+    roughness: 0.3,
+    metalness: 0.48,
+  });
+  const hddPlatterMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#dfe7ef'),
+    roughness: 0.12,
+    metalness: 0.72,
+    emissive: pickColorHex('#84b8ff'),
+    emissiveIntensity: 0.15,
+  });
+  const hddArmMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#a4acb8'),
+    roughness: 0.34,
+    metalness: 0.46,
+  });
+  const hddAccentMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#1a2f55'),
+    roughness: 0.45,
+    metalness: 0.2,
+    emissive: pickColorHex('#57a2ff'),
+    emissiveIntensity: 0.25,
   });
   const lockMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#f2c94c'),
@@ -537,10 +568,28 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     emissiveIntensity: 0.75,
   });
   const clutterMat = new THREE.MeshStandardMaterial({
-    color: pickColorHex('#e9eef8'),
-    roughness: 0.85,
+    color: pickColorHex('#f1f4fb'),
+    roughness: 0.82,
     metalness: 0.0,
-    side: THREE.DoubleSide,
+  });
+  const clutterBackMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#dbe2ef'),
+    roughness: 0.9,
+    metalness: 0.0,
+  });
+  const clutterInkMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#5d667a'),
+    roughness: 0.7,
+    metalness: 0.0,
+  });
+  const clutterTapeMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#f2c94c'),
+    roughness: 0.58,
+    metalness: 0.08,
+    emissive: pickColorHex('#6a4b00'),
+    emissiveIntensity: 0.08,
+    transparent: true,
+    opacity: 0.9,
   });
   const appleMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#e04444'),
@@ -608,37 +657,46 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     roughness: 0.25,
     metalness: 0.1,
     emissive: pickColorHex('#ff5a00'),
-    emissiveIntensity: 0.45,
+    emissiveIntensity: 0.74,
   });
   const powerTripleMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#3c8bff'),
     roughness: 0.25,
     metalness: 0.12,
     emissive: pickColorHex('#2b4bff'),
-    emissiveIntensity: 0.4,
+    emissiveIntensity: 0.72,
   });
   const powerGiantMat = new THREE.MeshStandardMaterial({
     color: pickColorHex('#f2c94c'),
     roughness: 0.3,
     metalness: 0.18,
     emissive: pickColorHex('#6a4b00'),
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.58,
   });
 
   const trashMat = new THREE.MeshStandardMaterial({
-    color: pickColorHex('#aab3c5'),
-    roughness: 0.65,
-    metalness: 0.05,
+    color: pickColorHex('#c5c9d0'),
+    roughness: 0.52,
+    metalness: 0.18,
+    emissive: pickColorHex('#535861'),
+    emissiveIntensity: 0.12,
   });
   const trashLidMat = new THREE.MeshStandardMaterial({
-    color: pickColorHex('#c2cad8'),
-    roughness: 0.55,
-    metalness: 0.08,
+    color: pickColorHex('#dde1e8'),
+    roughness: 0.38,
+    metalness: 0.25,
+    emissive: pickColorHex('#5c6270'),
+    emissiveIntensity: 0.1,
   });
   const trashDarkMat = new THREE.MeshStandardMaterial({
-    color: pickColorHex('#7d8698'),
-    roughness: 0.75,
-    metalness: 0.04,
+    color: pickColorHex('#6d727b'),
+    roughness: 0.72,
+    metalness: 0.12,
+  });
+  const trashInnerMat = new THREE.MeshStandardMaterial({
+    color: pickColorHex('#4d525a'),
+    roughness: 0.9,
+    metalness: 0.05,
   });
 
   const regiMat = new THREE.MeshStandardMaterial({
@@ -796,21 +854,6 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     opacity: 0.85,
   });
 
-  const hpBackMat = new THREE.MeshBasicMaterial({
-    color: 0x0b1020,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  hpBackMat.userData.fixedOpacity = true;
-  const hpEdgeMat = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.28,
-    toneMapped: false,
-  });
-
   const wallBaseColor = pickColorHex('#d4a456');
 
   const applyStatusToMaterial = (mesh, { stunned = 0, isHit = false }) => {
@@ -856,32 +899,70 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   addBackfaceOutline(cursor, 1.16);
 
   const systemFolder = new THREE.Group();
-  const folderTab = new THREE.Mesh(folderTabGeo, folderTabMat);
-  folderTab.castShadow = !automationMode;
-  folderTab.position.set(0, -10, 6);
-  addBackfaceOutline(folderTab, 1.08);
-  const folderBody = new THREE.Mesh(folderBodyGeo, folderMat);
-  folderBody.castShadow = !automationMode;
-  folderBody.position.set(0, 0, 8);
-  addBackfaceOutline(folderBody, 1.08);
-  const folderLock = new THREE.Mesh(lockGeo, lockMat);
-  folderLock.castShadow = !automationMode;
-  folderLock.position.set(0, 6, 14);
-  addBackfaceOutline(folderLock, 1.12);
-  const folderSlot = new THREE.Mesh(folderSlotGeo, folderSlotMat);
-  folderSlot.castShadow = false;
-  folderSlot.position.set(0, 5, 14.2);
-  systemFolder.add(folderSlot);
-  addBackfaceOutline(folderSlot, 1.06);
-  const folderHandle = new THREE.Mesh(trashHandleGeo, lockMat);
-  folderHandle.castShadow = !automationMode;
-  folderHandle.rotation.x = Math.PI / 2;
-  folderHandle.position.set(0, 12, 15.2);
-  systemFolder.add(folderHandle);
-  addBackfaceOutline(folderHandle, 1.06);
-  systemFolder.add(folderTab);
-  systemFolder.add(folderBody);
-  systemFolder.add(folderLock);
+  const hddBase = new THREE.Mesh(hddBaseGeo, hddBaseMat);
+  hddBase.castShadow = !automationMode;
+  hddBase.position.set(0, 0, 6.4);
+  addBackfaceOutline(hddBase, 1.08);
+
+  const hddTop = new THREE.Mesh(hddTopGeo, hddTopMat);
+  hddTop.castShadow = !automationMode;
+  hddTop.position.set(0, 0, 11.0);
+  addBackfaceOutline(hddTop, 1.06);
+
+  const platter = new THREE.Mesh(hddPlatterGeo, hddPlatterMat);
+  platter.castShadow = false;
+  platter.rotation.x = Math.PI / 2;
+  platter.position.set(-8.2, 0.4, 12.4);
+  addBackfaceOutline(platter, 1.04);
+
+  const hub = new THREE.Mesh(hddHubGeo, lockMat);
+  hub.castShadow = false;
+  hub.rotation.x = Math.PI / 2;
+  hub.position.set(-8.2, 0.4, 13.3);
+
+  const armPivot = new THREE.Group();
+  armPivot.position.set(-1.8, -0.6, 13.1);
+  const arm = new THREE.Mesh(hddArmGeo, hddArmMat);
+  arm.castShadow = !automationMode;
+  arm.position.set(7.0, 0.3, 0);
+  const head = new THREE.Mesh(hddHeadGeo, hddAccentMat);
+  head.castShadow = !automationMode;
+  head.position.set(15.4, 0.3, 0.4);
+  armPivot.add(arm, head);
+  addBackfaceOutline(arm, 1.06);
+  addBackfaceOutline(head, 1.08);
+
+  const mkScrew = (x, y) => {
+    const s = new THREE.Mesh(hddScrewGeo, watchdogBarrelMat);
+    s.castShadow = false;
+    s.rotation.x = Math.PI / 2;
+    s.position.set(x, y, 12.2);
+    return s;
+  };
+  const screw1 = mkScrew(-25, -17);
+  const screw2 = mkScrew(25, -17);
+  const screw3 = mkScrew(-25, 17);
+  const screw4 = mkScrew(25, 17);
+
+  const led = new THREE.Mesh(hddScrewGeo, hddAccentMat);
+  led.castShadow = false;
+  led.rotation.x = Math.PI / 2;
+  led.scale.set(1.2, 1.2, 1.2);
+  led.position.set(23.2, -14.1, 12.4);
+
+  const vent1 = new THREE.Mesh(hddVentGeo, watchdogBarrelMat);
+  vent1.castShadow = false;
+  vent1.position.set(19.0, 9.2, 12.1);
+  const vent2 = vent1.clone();
+  vent2.position.y = 10.8;
+  const vent3 = vent1.clone();
+  vent3.position.y = 13.4;
+
+  addGlowPlane(systemFolder, glowCyanMat, 74, -14);
+  systemFolder.userData.platter = platter;
+  systemFolder.userData.armPivot = armPivot;
+  systemFolder.userData.led = led;
+  systemFolder.add(hddBase, hddTop, platter, hub, armPivot, screw1, screw2, screw3, screw4, led, vent1, vent2, vent3);
   scene.add(systemFolder);
 
   const empRing = new THREE.Mesh(
@@ -906,6 +987,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     folderMat,
     folderTabMat,
     folderSlotMat,
+    hddBaseMat,
+    hddTopMat,
+    hddPlatterMat,
+    hddArmMat,
+    hddAccentMat,
     lockMat,
     outlineMat,
     glowYellowMat,
@@ -919,6 +1005,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     projectileMat,
     projectileWatchdogMat,
     clutterMat,
+    clutterBackMat,
+    clutterInkMat,
+    clutterTapeMat,
     appleMat,
     appleStemMat,
     appleHighlightMat,
@@ -934,6 +1023,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     trashMat,
     trashLidMat,
     trashDarkMat,
+    trashInnerMat,
     regiMat,
     regiShellMat,
     regiLegMat,
@@ -958,8 +1048,6 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     floppyLabelMat,
     floppyShutterMat,
     floppyHoleMat,
-    hpBackMat,
-    hpEdgeMat,
     bgMat,
     shadowMat,
     empRing.material,
@@ -1036,13 +1124,29 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     let g = deployables.get('trash');
     if (g) return g;
     g = new THREE.Group();
+
     const body = new THREE.Mesh(trashBodyGeo, trashMat);
     body.castShadow = !automationMode;
     addBackfaceOutline(body, 1.06);
+
     const lid = new THREE.Mesh(trashLidGeo, trashLidMat);
     lid.castShadow = !automationMode;
     lid.position.set(0, -11, 0);
     addBackfaceOutline(lid, 1.06);
+
+    const inner = new THREE.Mesh(trashInnerGeo, trashInnerMat);
+    inner.castShadow = false;
+    inner.position.set(0, 0, 0);
+
+    const rim = new THREE.Mesh(trashRimGeo, trashLidMat);
+    rim.castShadow = false;
+    rim.position.set(0, -9.7, 0);
+    rim.rotation.x = Math.PI / 2;
+
+    const pedal = new THREE.Mesh(trashPedalGeo, trashDarkMat);
+    pedal.castShadow = !automationMode;
+    pedal.position.set(0, 11.6, 8.5);
+    addBackfaceOutline(pedal, 1.08);
 
     for (let i = 0; i < 6; i += 1) {
       const a = (i / 6) * Math.PI * 2;
@@ -1052,13 +1156,22 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       ridge.rotation.y = a;
       g.add(ridge);
     }
+
+    for (let i = 0; i < 5; i += 1) {
+      const a = (i / 5) * Math.PI * 2 + 0.2;
+      const slot = new THREE.Mesh(trashSlotGeo, trashInnerMat);
+      slot.castShadow = false;
+      slot.position.set(Math.cos(a) * 9.5, -1.2, Math.sin(a) * 9.5);
+      slot.rotation.y = a;
+      g.add(slot);
+    }
+
     const handle = new THREE.Mesh(trashHandleGeo, trashDarkMat);
     handle.castShadow = !automationMode;
     handle.position.set(0, -13.5, 7.5);
-    g.add(handle);
+    g.add(inner, rim, handle, pedal);
 
-    g.add(body);
-    g.add(lid);
+    g.add(body, lid);
     scene.add(g);
     deployables.set('trash', g);
     return g;
@@ -1350,58 +1463,6 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       g.add(body, shell, ring, pupil);
     }
 
-    // Enemy HP bar (segments) for readability. Kept small and mostly translucent when full.
-    const maxSegments = type === 'regi-mite' ? 3 : type === 'popup-gremlin' ? 2 : type === 'spy-dot' ? 5 : 0;
-    if (maxSegments > 1) {
-      const hpColor = type === 'regi-mite' ? new THREE.Color('#ffd35a') : type === 'popup-gremlin' ? new THREE.Color('#ff4da6') : new THREE.Color('#ff3b3b');
-      const barW = type === 'regi-mite' ? 44 : type === 'spy-dot' ? 40 : 36;
-      const barH = 6;
-      const pad = 1.6;
-      const gap = 1.4;
-      const segW = (barW - pad * 2 - gap * (maxSegments - 1)) / maxSegments;
-
-      const hpBar = new THREE.Group();
-      hpBar.position.set(0, type === 'popup-gremlin' ? -26 : type === 'spy-dot' ? -24 : -32, 0);
-
-      const back = new THREE.Mesh(glowGeo, hpBackMat);
-      back.scale.set(barW, barH, 1);
-      back.position.set(0, 0, 14);
-      back.castShadow = false;
-      back.receiveShadow = false;
-      hpBar.add(back);
-
-      const segs = [];
-      for (let i = 0; i < maxSegments; i += 1) {
-        const mat = new THREE.MeshBasicMaterial({
-          color: hpColor.clone(),
-          transparent: true,
-          opacity: 0.55,
-          depthWrite: false,
-          toneMapped: false,
-        });
-        mat.userData.fixedOpacity = true;
-        const seg = new THREE.Mesh(glowGeo, mat);
-        seg.scale.set(segW, barH - 2.2, 1);
-        seg.position.set(-barW / 2 + pad + segW / 2 + i * (segW + gap), 0, 14.2);
-        seg.castShadow = false;
-        seg.receiveShadow = false;
-        segs.push(seg);
-        hpBar.add(seg);
-      }
-
-      // Optional border for contrast.
-      const border = new THREE.LineSegments(hpBorderGeo, hpEdgeMat);
-      border.position.set(0, 0, 14.4);
-      border.scale.set(barW, barH, 1);
-      hpBar.add(border);
-
-      g.userData.hpBar = hpBar;
-      g.userData.hpSegs = segs;
-      g.userData.hpColor = hpColor;
-      g.userData.hpMaxSegments = maxSegments;
-      g.add(hpBar);
-    }
-
     scene.add(g);
     enemies.set(id, g);
     return g;
@@ -1509,7 +1570,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       tip.scale.set(0.72, 0.72, 0.72);
       addBackfaceOutline(tip, 1.03);
 
-      addGlowPlane(g, glowOrangeMat, 44, -14);
+      const rapidGlowMat = glowOrangeMat.clone();
+      rapidGlowMat.userData.fixedOpacity = true;
+      rapidGlowMat.opacity = automationMode ? 0.74 : 0.56;
+      const rapidGlow = addGlowPlane(g, rapidGlowMat, 62, -14);
+      rapidGlow.userData.baseScale = 62;
+      g.userData.pickupGlow = rapidGlow;
       g.add(cap, finL, finR, stripe1, stripe2, tip);
     } else if (type === 'powerup-triple') {
       // Triple: cluster of three mini-barrels.
@@ -1541,7 +1607,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       const h2 = mkHole(5.4, -2.0);
       const h3 = mkHole(0.0, 6.0);
 
-      addGlowPlane(g, glowBlueMat, 46, -14);
+      const tripleGlowMat = glowBlueMat.clone();
+      tripleGlowMat.userData.fixedOpacity = true;
+      tripleGlowMat.opacity = automationMode ? 0.74 : 0.56;
+      const tripleGlow = addGlowPlane(g, tripleGlowMat, 62, -14);
+      tripleGlow.userData.baseScale = 62;
+      g.userData.pickupGlow = tripleGlow;
       g.add(base, b1, b2, b3, h1, h2, h3);
     } else if (type === 'powerup-giant') {
       // Giant: shield + crown to read as "power".
@@ -1565,7 +1636,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         spikes.add(sp);
       }
 
-      addGlowPlane(g, glowYellowMat, 50, -14);
+      const giantGlowMat = glowYellowMat.clone();
+      giantGlowMat.userData.fixedOpacity = true;
+      giantGlowMat.opacity = automationMode ? 0.76 : 0.6;
+      const giantGlow = addGlowPlane(g, giantGlowMat, 68, -14);
+      giantGlow.userData.baseScale = 68;
+      g.userData.pickupGlow = giantGlow;
       g.add(shield, halo, spikes);
     } else {
       const body = new THREE.Mesh(powerCapsuleGeo, powerRapidMat);
@@ -1603,15 +1679,49 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
   }
 
   function ensureClutter(id) {
-    let m = clutter.get(id);
-    if (m) return m;
-    m = new THREE.Mesh(clutterGeo, clutterMat);
-    m.castShadow = !automationMode;
-    m.receiveShadow = false;
-    scene.add(m);
-    clutter.set(id, m);
+    let g = clutter.get(id);
+    if (g) return g;
+    g = new THREE.Group();
+
+    const back = new THREE.Mesh(clutterBackSheetGeo, clutterBackMat);
+    back.castShadow = !automationMode;
+    back.receiveShadow = false;
+    back.position.set(0.9, -0.8, 0.2);
+    back.rotation.z = -0.16;
+    addBackfaceOutline(back, 1.05);
+
+    const sheet = new THREE.Mesh(clutterSheetGeo, clutterMat);
+    sheet.castShadow = !automationMode;
+    sheet.receiveShadow = false;
+    sheet.position.set(0, 0, 0.6);
+    addBackfaceOutline(sheet, 1.06);
+
+    const fold = new THREE.Mesh(clutterFoldGeo, clutterBackMat);
+    fold.castShadow = false;
+    fold.position.set(5.4, -3.9, 1.2);
+    fold.rotation.z = 0.72;
+
+    const tape = new THREE.Mesh(clutterTapeGeo, clutterTapeMat);
+    tape.castShadow = false;
+    tape.position.set(-3.7, -4.0, 1.1);
+    tape.rotation.z = -0.22;
+
+    const mkLine = (x, y, sx = 1) => {
+      const l = new THREE.Mesh(clutterLineGeo, clutterInkMat);
+      l.castShadow = false;
+      l.position.set(x, y, 1.15);
+      l.scale.set(sx, 1, 1);
+      return l;
+    };
+    const line1 = mkLine(-1.8, -0.9, 1.0);
+    const line2 = mkLine(-2.6, 1.2, 0.84);
+    const line3 = mkLine(-1.4, 3.2, 0.7);
+
+    g.add(back, sheet, fold, tape, line1, line2, line3);
+    scene.add(g);
+    clutter.set(id, g);
     if (!clutterAngle.has(id)) clutterAngle.set(id, (Math.random() - 0.5) * 0.6);
-    return m;
+    return g;
   }
 
   function cleanupMap(map, keepIds, keyIsString = false) {
@@ -1687,6 +1797,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       // Default position used by the existing UI.
       trash.position.set(580 + 16, 420 + 18, 0);
     }
+    trash.scale.set(1.12, 1.12, 1.12);
 
     // EMP ring.
     if (state.empExplosion && Number.isFinite(state.totalTime) && Number.isFinite(state.empExplosion.t0)) {
@@ -1857,29 +1968,6 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
         if (shell) shell.rotation.z = tt * 0.55;
       }
 
-      // HP segments.
-      const segs = g.userData.hpSegs;
-      const hpColor = g.userData.hpColor;
-      const maxSegs = Number.isFinite(g.userData.hpMaxSegments) ? g.userData.hpMaxSegments : 0;
-      if (Array.isArray(segs) && segs.length > 0 && maxSegs > 1 && hpColor && hpColor.isColor) {
-        const maxHp = Number.isFinite(e.maxHp) ? Math.max(1, e.maxHp) : maxSegs;
-        const hp = Number.isFinite(e.hp) ? Math.max(0, Math.min(maxHp, e.hp)) : 0;
-        const full = hp >= maxHp;
-        const onOpacity = full ? 0.78 : 0.98;
-        const offOpacity = full ? 0.18 : 0.26;
-        for (let i = 0; i < segs.length; i += 1) {
-          const seg = segs[i];
-          if (!seg || !seg.material || !seg.material.color) continue;
-          if (i < hp) {
-            seg.material.color.copy(hpColor);
-            seg.material.opacity = onOpacity;
-          } else {
-            seg.material.color.set('#0b1020');
-            seg.material.opacity = offOpacity;
-          }
-        }
-      }
-
       // Hit / stunned feedback.
       const stunned = Number.isFinite(e.stunned) ? e.stunned : 0;
       const isHit = !!e.isHit;
@@ -1890,18 +1978,22 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
 
       if (e.flipX) g.scale.x = -Math.abs(g.scale.x || 1);
       else g.scale.x = Math.abs(g.scale.x || 1);
-
-      // Keep HP bars unflipped so segment order reads left-to-right.
-      const hpBar = g.userData.hpBar || null;
-      if (hpBar) hpBar.scale.x = e.flipX ? -1 : 1;
     }
     cleanupMap(enemies, enemyIds);
 
     // Optional polish: subtle idle motion for the objective and trash.
     const tt = state.totalTime || 0;
-    systemFolder.position.y = 280 + Math.sin(tt * 1.2) * 1.6;
-    systemFolder.rotation.z = Math.sin(tt * 0.9) * 0.035;
-    trash.rotation.z = Math.sin(tt * 1.6) * 0.04;
+    systemFolder.position.y = 280 + Math.sin(tt * 1.2) * 0.9;
+    systemFolder.rotation.z = Math.sin(tt * 0.9) * 0.012;
+    const platter = systemFolder.userData.platter || null;
+    if (platter) platter.rotation.z = tt * 3.8;
+    const armPivot = systemFolder.userData.armPivot || null;
+    if (armPivot) armPivot.rotation.z = -0.34 + Math.sin(tt * 1.7) * 0.14;
+    const led = systemFolder.userData.led || null;
+    if (led && led.material && 'emissiveIntensity' in led.material) {
+      led.material.emissiveIntensity = 0.24 + 0.36 * Math.abs(Math.sin(tt * 5.4));
+    }
+    trash.rotation.z = Math.sin(tt * 1.6) * 0.03;
 
     // Pickups.
     const pickupIds = new Set();
@@ -1916,6 +2008,15 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
       g.position.set(p.x, p.y + wobble, 6);
       g.rotation.z = isPower ? t * 0.6 : t * 0.35;
       g.scale.setScalar(pulse);
+      const pickupGlow = g.userData.pickupGlow || null;
+      if (pickupGlow && pickupGlow.material && 'opacity' in pickupGlow.material) {
+        const baseOpacity = automationMode ? 0.48 : 0.38;
+        const glowPulse = Math.abs(Math.sin(t * 8.0 + id * 0.37));
+        pickupGlow.material.opacity = baseOpacity + glowPulse * (automationMode ? 0.36 : 0.52);
+        const glowBase = Number.isFinite(pickupGlow.userData.baseScale) ? pickupGlow.userData.baseScale : 58;
+        const glowScale = glowBase * (1 + glowPulse * 0.08);
+        pickupGlow.scale.set(glowScale, glowScale, 1);
+      }
 
       // Extra polish: subtle float/tilt and highlight wobble without affecting gameplay.
       g.rotation.x = Math.sin(t * 1.7 + id) * 0.2;
@@ -2015,9 +2116,12 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     wallBraceGeo.dispose();
     projectileGeo.dispose();
     glowGeo.dispose();
-    hpBorderGeo.dispose();
     trailGeo.dispose();
-    clutterGeo.dispose();
+    clutterSheetGeo.dispose();
+    clutterBackSheetGeo.dispose();
+    clutterLineGeo.dispose();
+    clutterTapeGeo.dispose();
+    clutterFoldGeo.dispose();
     coolantGeo.dispose();
     coolantCoreGeo.dispose();
     coolantCanGeo.dispose();
@@ -2041,8 +2145,20 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     powerCrownBandGeo.dispose();
     trashBodyGeo.dispose();
     trashLidGeo.dispose();
+    trashInnerGeo.dispose();
+    trashRimGeo.dispose();
+    trashPedalGeo.dispose();
     trashRidgeGeo.dispose();
+    trashSlotGeo.dispose();
     trashHandleGeo.dispose();
+    hddBaseGeo.dispose();
+    hddTopGeo.dispose();
+    hddPlatterGeo.dispose();
+    hddHubGeo.dispose();
+    hddArmGeo.dispose();
+    hddHeadGeo.dispose();
+    hddScrewGeo.dispose();
+    hddVentGeo.dispose();
     regiBodyGeo.dispose();
     eyeGeo.dispose();
     eyeWhiteGeo.dispose();
@@ -2080,6 +2196,11 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     folderMat.dispose();
     folderTabMat.dispose();
     folderSlotMat.dispose();
+    hddBaseMat.dispose();
+    hddTopMat.dispose();
+    hddPlatterMat.dispose();
+    hddArmMat.dispose();
+    hddAccentMat.dispose();
     lockMat.dispose();
     outlineMat.dispose();
     glowYellowMat.dispose();
@@ -2093,6 +2214,9 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     projectileMat.dispose();
     projectileWatchdogMat.dispose();
     clutterMat.dispose();
+    clutterBackMat.dispose();
+    clutterInkMat.dispose();
+    clutterTapeMat.dispose();
     appleMat.dispose();
     appleStemMat.dispose();
     appleHighlightMat.dispose();
@@ -2108,6 +2232,7 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     trashMat.dispose();
     trashLidMat.dispose();
     trashDarkMat.dispose();
+    trashInnerMat.dispose();
     regiMat.dispose();
     regiShellMat.dispose();
     regiLegMat.dispose();
@@ -2132,8 +2257,6 @@ export function createDesktop3DRenderer({ canvas, width, height, preserveDrawing
     floppyLabelMat.dispose();
     floppyShutterMat.dispose();
     floppyHoleMat.dispose();
-    hpBackMat.dispose();
-    hpEdgeMat.dispose();
     bgMat.dispose();
     shadowMat.dispose();
     empRing.material.dispose();
